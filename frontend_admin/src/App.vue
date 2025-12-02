@@ -8,6 +8,7 @@
 <script>
 import Login from "./components/Login.vue";
 import Dashboard from "./components/Dashboard.vue";
+import { useAdminNavigationStore } from "./stores/adminNavigationStore";
 
 export default {
   components: {
@@ -25,6 +26,10 @@ export default {
     if (staff) {
       this.currentUser = JSON.parse(staff);
       this.isLoggedIn = true;
+      
+      // Load saved navigation state
+      const navStore = useAdminNavigationStore();
+      navStore.loadState();
     }
   },
   methods: {
@@ -32,12 +37,20 @@ export default {
       const staff = localStorage.getItem("staff");
       this.currentUser = JSON.parse(staff);
       this.isLoggedIn = true;
+      
+      // Initialize navigation store on login
+      const navStore = useAdminNavigationStore();
+      navStore.loadState();
     },
     handleLogout() {
       if (confirm("Bạn chắc chắn muốn đăng xuất?")) {
         localStorage.removeItem("staff");
         this.isLoggedIn = false;
         this.currentUser = null;
+        
+        // Clear navigation state on logout
+        const navStore = useAdminNavigationStore();
+        navStore.clearAllState();
       }
     },
   },

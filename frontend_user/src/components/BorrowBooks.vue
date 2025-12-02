@@ -2,7 +2,7 @@
   <div class="borrow-books-container">
     <!-- Header -->
     <Header 
-      title="📚 Mượn Sách"
+      title="Mượn Sách"
       subtitle="Chọn sách để mượn từ thư viện"
       :userName="`${currentUser?.Ho_Lot} ${currentUser?.Ten}`"
       :showBack="true"
@@ -25,13 +25,13 @@
       <select v-model="selectedAuthor" @change="performSearch" class="filter-select">
         <option value="">Tất cả tác giả</option>
         <option v-for="author in authors" :key="author._id" :value="author._id" :title="author.Ten_Tac_Gia">
-          {{ author.Ten_Tac_Gia.length > 30 ? author.Ten_Tac_Gia.substring(0, 30) + '...' : author.Ten_Tac_Gia }}
+          {{ author.Ten_Tac_Gia.length > 25 ? author.Ten_Tac_Gia.substring(0, 25) + '...' : author.Ten_Tac_Gia }}
         </option>
       </select>
       <select v-model="selectedPublisher" @change="performSearch" class="filter-select">
         <option value="">Tất cả nhà xuất bản</option>
-        <option v-for="pub in publishers" :key="pub._id" :value="pub._id" :title="pub.Ten_Nha_Xuat_Ban || pub.Ten_NXB">
-          {{ (pub.Ten_Nha_Xuat_Ban || pub.Ten_NXB).length > 30 ? (pub.Ten_Nha_Xuat_Ban || pub.Ten_NXB).substring(0, 30) + '...' : (pub.Ten_Nha_Xuat_Ban || pub.Ten_NXB) }}
+        <option v-for="pub in publishers" :key="pub._id" :value="pub._id" :title="pub.Ten_NXB">
+          {{ pub.Ten_NXB.length > 25 ? pub.Ten_NXB.substring(0, 25) + '...' : pub.Ten_NXB }}
         </option>
       </select>
     </div>
@@ -43,13 +43,14 @@
     </div>
 
     <div v-else-if="filteredBooks.length > 0" class="books-gallery">
-      <div v-for="book in filteredBooks" :key="book._id" class="book-card">
+      <div v-for="book in paginatedBooks" :key="book._id" class="book-card">
         <div class="book-image-container">
           <div class="book-image">
             <img 
               v-if="book.Hinh_Anh" 
-              :src="book.Hinh_Anh" 
+              :src="getImageUrl(book.Hinh_Anh)" 
               :alt="book.Ten_Sach"
+              @error="handleImageError"
               class="book-cover"
             />
             <div v-else class="book-placeholder">
@@ -72,7 +73,7 @@
           <div class="book-details">
             <div class="detail-item">
               <span class="detail-label">Tác giả:</span>
-              <span class="detail-value">{{ getAuthorName(book.Tac_Gia) }}</span>
+              <span class="detail-value" :title="getAuthorName(book.Tac_Gia)">{{ getAuthorName(book.Tac_Gia) }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">NXB:</span>
@@ -81,10 +82,6 @@
             <div class="detail-item">
               <span class="detail-label">Năm:</span>
               <span class="detail-value">{{ book.Nam_Xuat_Ban || '-' }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Giá:</span>
-              <span class="detail-value price">{{ formatPrice(book.Don_Gia) }}</span>
             </div>
           </div>
 
@@ -101,6 +98,29 @@
           </button>
         </div>
       </div>
+    </div>
+
+    <!-- Pagination -->
+    <div v-if="filteredBooks.length > 0" class="pagination-section">
+      <button 
+        @click="currentPage = currentPage - 1"
+        :disabled="currentPage === 1"
+        class="btn-pagination btn-prev"
+      >
+        <i class="fas fa-chevron-left"></i> Trước
+      </button>
+      
+      <div class="pagination-info">
+        Trang {{ currentPage }} / {{ totalPages }} ({{ filteredBooks.length }} sách)
+      </div>
+      
+      <button 
+        @click="currentPage = currentPage + 1"
+        :disabled="currentPage === totalPages"
+        class="btn-pagination btn-next"
+      >
+        Tiếp <i class="fas fa-chevron-right"></i>
+      </button>
     </div>
 
     <div v-else class="no-books">
@@ -162,18 +182,6 @@
         </form>
       </div>
     </div>
-
-    <!-- Success Message -->
-    <div v-if="successMessage" class="toast toast-success">
-      <i class="fas fa-check-circle"></i>
-      {{ successMessage }}
-    </div>
-
-    <!-- Error Message -->
-    <div v-if="errorMessage" class="toast toast-error">
-      <i class="fas fa-exclamation-circle"></i>
-      {{ errorMessage }}
-    </div>
     </div>
   </div>
 </template>
@@ -182,6 +190,7 @@
 import axios from 'axios';
 import { useBookStore } from '@/stores/bookStore';
 import { useBorrowStore } from '@/stores/borrowStore';
+import { useNavigationStore } from '@/stores/navigationStore';
 import Header from './Header.vue';
 
 export default {
@@ -198,7 +207,8 @@ export default {
   setup() {
     const bookStore = useBookStore();
     const borrowStore = useBorrowStore();
-    return { bookStore, borrowStore };
+    const navigationStore = useNavigationStore();
+    return { bookStore, borrowStore, navigationStore };
   },
   data() {
     return {
@@ -211,9 +221,9 @@ export default {
       borrowForm: {
         returnDate: ""
       },
-      successMessage: '',
-      errorMessage: '',
-      today: new Date().toISOString().split('T')[0],
+       today: new Date().toISOString().split('T')[0],
+      currentPage: 1,
+      itemsPerPage: 12,
     };
   },
   computed: {
@@ -246,6 +256,14 @@ export default {
         return matchSearch && matchAuthor && matchPublisher;
       });
     },
+    totalPages() {
+      return Math.ceil(this.filteredBooks.length / this.itemsPerPage);
+    },
+    paginatedBooks() {
+      const start = (this.currentPage - 1) * this.itemsPerPage;
+      const end = start + this.itemsPerPage;
+      return this.filteredBooks.slice(start, end);
+    },
     maxReturnDate() {
       const date = new Date();
       date.setDate(date.getDate() + 14); // Maximum 14 days
@@ -254,6 +272,24 @@ export default {
   },
   async mounted() {
     await this.initializeData();
+    
+    // Load saved state from navigationStore
+    const state = this.navigationStore.borrowBooksState;
+    if (state) {
+      this.searchTerm = state.searchQuery || '';
+      this.selectedAuthor = state.selectedAuthor || '';
+      this.selectedPublisher = state.selectedPublisher || '';
+      this.currentPage = state.currentPage || 1;
+    }
+  },
+  beforeUnmount() {
+    // Save state before leaving component
+    this.navigationStore.saveBorrowBooksState({
+      searchQuery: this.searchTerm,
+      selectedAuthor: this.selectedAuthor,
+      selectedPublisher: this.selectedPublisher,
+      currentPage: this.currentPage,
+    });
   },
   methods: {
     async initializeData() {
@@ -289,25 +325,41 @@ export default {
       // Publisher có thể là object đã populate hoặc ID string
       if (!publisher) return 'Không rõ';
       
-      // Nếu là object, trả về Ten_Nha_Xuat_Ban
-      if (typeof publisher === 'object' && publisher.Ten_Nha_Xuat_Ban) {
-        return publisher.Ten_Nha_Xuat_Ban;
+      // Nếu là object, trả về Ten_NXB
+      if (typeof publisher === 'object' && publisher.Ten_NXB) {
+        return publisher.Ten_NXB;
       }
       
       // Nếu là string ID, tìm trong publishers array
       if (typeof publisher === 'string') {
-        const found = this.publishers.find(p => p._id === publisher || p.Ma_Nha_Xuat_Ban === publisher);
-        return found ? found.Ten_Nha_Xuat_Ban : 'Không rõ';
+        const found = this.publishers.find(p => p._id === publisher || p.Ma_NXB === publisher);
+        return found ? found.Ten_NXB : 'Không rõ';
       }
       
       return 'Không rõ';
     },
-    formatPrice(price) {
-      return new Intl.NumberFormat('vi-VN', {
-        style: 'currency',
-        currency: 'VND',
-      }).format(price || 0);
+
+    getImageUrl(imagePath) {
+      // Nếu là URL (http/https) thì giữ nguyên
+      if (imagePath && imagePath.startsWith("http")) {
+        return imagePath;
+      }
+      // Nếu là Base64 thì giữ nguyên
+      if (imagePath && imagePath.startsWith("data:")) {
+        return imagePath;
+      }
+      // Nếu là filename thì build URL /uploads/filename
+      if (imagePath) {
+        return `http://localhost:5000/uploads/${imagePath}`;
+      }
+      // Nếu không có ảnh thì dùng placeholder
+      return 'https://via.placeholder.com/250x350?text=No+Image';
     },
+
+    handleImageError(event) {
+      event.target.src = 'https://via.placeholder.com/250x350?text=L%E1%BB%97i+%E1%BA%A3nh';
+    },
+
     openBorrowModal(book) {
       this.selectedBook = book;
       this.borrowForm = {
@@ -381,8 +433,8 @@ export default {
         const borrowData = {
           Ma_Doc_Gia: this.currentUser._id,
           Ma_Sach: this.selectedBook._id,
-          Ngay_Muon: this.today,
-          Ngay_Tra: this.borrowForm.returnDate, // Gửi ngày hẹn trả
+          Ngay_Muon: new Date(this.today),
+          Ngay_Hen_Tra: new Date(this.borrowForm.returnDate),
           trang_thai: "Đang mượn",
         };
 
@@ -399,27 +451,23 @@ export default {
       } catch (error) {
         console.error('Error borrowing book:', error);
         console.error('Error response:', error.response?.data);
-        this.showError(error.response?.data?.message || 'Không thể mượn sách. Vui lòng thử lại');
+        const errorMessage = error.response?.data?.message || 'Không thể mượn sách. Vui lòng thử lại';
+        this.showError(errorMessage);
+        // Đóng modal ngay lập tức
+        this.closeBorrowModal();
       } finally {
         this.borrowLoading = false;
       }
     },
     performSearch() {
-      // This is triggered by filter changes, computed property handles the filtering
+      // Reset to first page when filter changes
+      this.currentPage = 1;
     },
     showSuccess(message) {
-      this.successMessage = message;
-      this.errorMessage = '';
-      setTimeout(() => {
-        this.successMessage = '';
-      }, 3000);
+      this.$toast.success(message, { autoClose: 3000 });
     },
     showError(message) {
-      this.errorMessage = message;
-      this.successMessage = '';
-      setTimeout(() => {
-        this.errorMessage = '';
-      }, 3000);
+      this.$toast.error(message, { autoClose: 3000 });
     },
     handleLogout() {
       localStorage.clear();
@@ -596,6 +644,56 @@ select optgroup {
   box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
 }
 
+/* Pagination */
+.pagination-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 2rem;
+  background: white;
+  border-radius: 12px;
+  margin: 2rem auto;
+  max-width: 1200px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.pagination-info {
+  font-weight: 600;
+  color: #666;
+  font-size: 0.95rem;
+  min-width: 180px;
+  text-align: center;
+}
+
+.btn-pagination {
+  padding: 0.75rem 1.5rem;
+  border: 2px solid #667eea;
+  background: white;
+  color: #667eea;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.btn-pagination:hover:not(:disabled) {
+  background: #667eea;
+  color: white;
+  transform: translateY(-2px);
+}
+
+.btn-pagination:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: #ccc;
+  color: #ccc;
+}
+
 .book-image-container {
   position: relative;
   padding: 1rem;
@@ -750,6 +848,10 @@ select optgroup {
   text-align: right;
   flex: 1;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .detail-value.in-stock {
@@ -758,11 +860,6 @@ select optgroup {
 
 .detail-value.out-of-stock {
   color: #f87171;
-}
-
-.price {
-  color: #667eea;
-  font-weight: 600;
 }
 
 /* Buttons */
@@ -980,47 +1077,6 @@ select optgroup {
 .btn-submit:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-/* Toast Messages */
-.toast {
-  position: fixed;
-  bottom: 2rem;
-  right: 2rem;
-  max-width: 350px;
-  padding: 1rem 1.25rem;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-weight: 600;
-  z-index: 1001;
-  animation: slideIn 0.3s ease;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(400px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-.toast-success {
-  background: rgba(34, 197, 94, 0.95);
-  border: 1px solid rgba(34, 197, 94, 1);
-  color: #ffffff;
-  box-shadow: 0 8px 24px rgba(34, 197, 94, 0.3);
-}
-
-.toast-error {
-  background: rgba(239, 68, 68, 0.95);
-  border: 1px solid rgba(239, 68, 68, 1);
-  color: #ffffff;
-  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.3);
 }
 
 /* Responsive */

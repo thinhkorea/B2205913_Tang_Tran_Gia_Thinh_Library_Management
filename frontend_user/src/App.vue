@@ -33,6 +33,7 @@ import Register from "./components/Register.vue";
 import Dashboard from "./components/Dashboard.vue";
 import BorrowBooks from "./components/BorrowBooks.vue";
 import BorrowHistory from "./components/BorrowHistory.vue";
+import { useNavigationStore } from "./stores/navigationStore";
 
 export default {
   components: {
@@ -56,6 +57,11 @@ export default {
     if (reader) {
       this.currentUser = JSON.parse(reader);
       this.isLoggedIn = true;
+      
+      // Load saved navigation state
+      const navStore = useNavigationStore();
+      navStore.loadState();
+      this.currentPage = navStore.currentPage;
     }
   },
   methods: {
@@ -64,12 +70,19 @@ export default {
       this.currentUser = JSON.parse(reader);
       this.isLoggedIn = true;
       this.currentPage = "dashboard";
+      
+      // Initialize navigation store on login
+      const navStore = useNavigationStore();
+      navStore.loadState();
     },
     handleRegisterSuccess() {
       this.showRegister = false;
     },
     handleNavigate(page) {
       this.currentPage = page;
+      const navStore = useNavigationStore();
+      navStore.saveCurrentPage(page);
+      
       // Force Dashboard to reload when navigating back
       if (page === 'dashboard') {
         this.dashboardKey++;
@@ -85,6 +98,10 @@ export default {
         this.isLoggedIn = false;
         this.currentUser = null;
         this.currentPage = "dashboard";
+        
+        // Clear navigation state on logout
+        const navStore = useNavigationStore();
+        navStore.clearAllState();
       }
     },
   },

@@ -3,14 +3,13 @@
     <div class="login-container">
       <div class="login-box">
         <div class="login-header">
-          <h1>📚 Quản Lý Thư Viện</h1>
+          <h1>Quản Lý Thư Viện</h1>
           <p>Cổng Thông Tin Độc Giả</p>
         </div>
 
         <form @submit.prevent="handleLogin" class="login-form">
           <div class="form-group">
             <label>
-              <span class="label-icon">✉️</span>
               <span>Gmail</span>
             </label>
             <input
@@ -24,7 +23,6 @@
 
           <div class="form-group">
             <label>
-              <span class="label-icon">🔐</span>
               <span>Mật Khẩu</span>
             </label>
             <input
@@ -38,11 +36,11 @@
 
           <button type="submit" :disabled="loading" class="login-btn">
             <span v-if="!loading">Đăng Nhập</span>
-            <span v-else>⏳ Đang xử lý...</span>
+            <span v-else>Đang xử lý...</span>
           </button>
 
           <div v-if="error" class="error-alert">
-            <span class="error-icon">⚠️</span>
+            <span class="error-icon"></span>
             {{ error }}
           </div>
         </form>

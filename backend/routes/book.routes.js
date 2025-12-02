@@ -1,4 +1,5 @@
 import express from "express";
+import upload from "../config/multer.js";
 import {
   getAllBooks,
   createBook,
@@ -15,11 +16,11 @@ router.get("/", getAllBooks);
 // Tìm kiếm sách theo từ khóa (?keyword=java)
 router.get("/search", searchBooks);
 
-// Thêm sách mới
-router.post("/", createBook);
+// Thêm sách mới (với upload ảnh)
+router.post("/", upload.single("Hinh_Anh"), createBook);
 
-// Cập nhật sách theo ID
-router.put("/:id", updateBook);
+// Cập nhật sách theo ID (với upload ảnh)
+router.put("/:id", upload.single("Hinh_Anh"), updateBook);
 
 // Xóa sách theo ID
 router.delete("/:id", deleteBook);

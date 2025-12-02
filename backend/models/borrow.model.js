@@ -13,13 +13,24 @@ const borrowSchema = new mongoose.Schema(
       required: true,
     },
     Ngay_Muon: { type: Date, default: Date.now },
-    Ngay_Tra: { type: Date },
-    Ngay_Tra_Thuc_Te: { type: Date }, // Ngày trả thực tế
+    Ngay_Hen_Tra: { type: Date, required: true }, // Ngày hẹn trả
+    Ngay_Tra: { type: Date }, // Ngày trả thực tế
     trang_thai: {
       type: String,
-      enum: ["Đang mượn", "Đã trả"],
-      default: "Đang mượn",
+      enum: ["Chờ xác nhận", "Đang mượn", "Đã trả", "Quá hạn"],
+      default: "Chờ xác nhận",
     },
+    Tien_Phat: { 
+      type: Number, 
+      default: 0 
+    }, // Tiền phạt quá hạn (tính theo ngày)
+    return_request: {
+      type: Boolean,
+      default: false
+    }, // Yêu cầu trả sách từ user
+    return_request_date: {
+      type: Date
+    }, // Ngày gửi yêu cầu trả sách
   },
   { collection: "Theo_Doi_Muon_Sach", timestamps: true, versionKey: false }
 );

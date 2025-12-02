@@ -64,6 +64,12 @@
             <span>Mượn trả sách</span>
           </button>
           <button 
+            @click="setActiveView('borrow-approval')"
+            :class="['nav-item', { active: activeView === 'borrow-approval' }]">
+            <i class="fas fa-check-circle"></i>
+            <span>Xác nhận phiếu mượn</span>
+          </button>
+          <button 
             @click="setActiveView('publishers')"
             :class="['nav-item', { active: activeView === 'publishers' }]">
             <i class="fas fa-building"></i>
@@ -74,6 +80,18 @@
             :class="['nav-item', { active: activeView === 'staff' }]">
             <i class="fas fa-user-tie"></i>
             <span>Nhân viên</span>
+          </button>
+          <button 
+            @click="setActiveView('fines')"
+            :class="['nav-item', { active: activeView === 'fines' }]">
+            <i class="fas fa-money-bill"></i>
+            <span>Tiền phạt</span>
+          </button>
+          <button 
+            @click="setActiveView('statistics')"
+            :class="['nav-item', { active: activeView === 'statistics' }]">
+            <i class="fas fa-chart-bar"></i>
+            <span>Thống kê</span>
           </button>
         </div>
       </div>
@@ -87,9 +105,17 @@
       <div v-if="activeView === 'dashboard'" class="view-content">
         <div class="welcome-section">
           <h1 class="welcome-title">
-            Chào mừng, {{ currentUser?.Ho_Ten || "Quản trị viên" }} 👋
+            Chào mừng, {{ currentUser?.Ho_Ten || "Quản trị viên" }}
           </h1>
           <p class="welcome-date">{{ getCurrentDate() }}</p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons-section">
+          <button @click="updateOverdueStatus" class="btn-action btn-primary">
+            <i class="fas fa-sync-alt"></i>
+            <span>Cập Nhật Trạng Thái Quá Hạn</span>
+          </button>
         </div>
 
       <!-- Stats Cards Grid -->
@@ -575,23 +601,37 @@
       <!-- Borrow Management -->
       <BorrowList v-else-if="activeView === 'borrows'" />
       
+      <!-- Borrow Approval Management -->
+      <BorrowApproval v-else-if="activeView === 'borrow-approval'" />
+      
       <!-- Publishers Management -->
       <PublisherList v-else-if="activeView === 'publishers'" />
       
       <!-- Staff Management -->
       <StaffList v-else-if="activeView === 'staff'" />
+      
+      <!-- Fines Management -->
+      <FineList v-else-if="activeView === 'fines'" />
+      
+      <!-- Statistics -->
+      <Statistics v-else-if="activeView === 'statistics'" />
     </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, onMounted, computed } from "vue";
 import BookList from './BookList.vue';
 import ReaderList from './ReaderList.vue';
 import BorrowList from './BorrowList.vue';
+import BorrowApproval from './BorrowApproval.vue';
 import PublisherList from './PublisherList.vue';
 import StaffList from './StaffList.vue';
+import FineList from './FineList.vue';
+import Statistics from './Statistics.vue';
+import { success, error } from '../utils/toast';
+import { useAdminNavigationStore } from '../stores/adminNavigationStore';
 
 const props = defineProps({
   currentUser: {
@@ -602,10 +642,18 @@ const props = defineProps({
 
 const emit = defineEmits(['logout']);
 
-const activeView = ref('dashboard');
+const navStore = useAdminNavigationStore();
+
+// Expose activeView from store
+const activeView = computed(() => navStore.activeView);
+
+onMounted(() => {
+  // Load saved navigation state
+  navStore.loadState();
+});
 
 const setActiveView = (view) => {
-  activeView.value = view;
+  navStore.saveActiveView(view);
 };
 
 const getCurrentDate = () => {
@@ -621,6 +669,22 @@ const getCurrentDate = () => {
 const handleLogout = () => {
   if (confirm("Bạn chắc chắn muốn đăng xuất?")) {
     emit('logout');
+  }
+};
+
+const updateOverdueStatus = async () => {
+  try {
+    const response = await fetch('http://localhost:5000/api/borrows/auto-update-overdue', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    
+    const data = await response.json();
+    success(`${data.message}\nĐã cập nhật: ${data.updatedCount}/${data.totalOverdue}`);
+  } catch (err) {
+    error(`Lỗi cập nhật: ${err.message}`);
   }
 };
 </script>
@@ -861,6 +925,41 @@ const handleLogout = () => {
   color: rgba(255, 255, 255, 0.7);
 }
 
+/* Action Buttons Section */
+.action-buttons-section {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-action.btn-primary {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+.btn-action.btn-primary:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+}
+
+.btn-action i {
+  font-size: 1.1rem;
+}
+
 /* Dashboard Content */
 .dashboard-content {
   padding: 0;
@@ -895,10 +994,6 @@ const handleLogout = () => {
 
 .btn:hover {
   transform: translateY(-2px);
-}
-
-.fw-500 {
-  font-weight: 500;
 }
 
 .container-fluid {

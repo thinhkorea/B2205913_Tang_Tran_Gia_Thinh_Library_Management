@@ -188,6 +188,7 @@
 
 <script>
 import axios from 'axios';
+import { success, error } from '../utils/toast';
 
 export default {
   name: 'StaffList',
@@ -219,7 +220,7 @@ export default {
   methods: {
     async loadStaff() {
       try {
-        const response = await axios.get('http://localhost:3000/api/staff');
+        const response = await axios.get('http://localhost:5000/api/staff');
         this.staff = response.data;
         this.filteredStaff = [...this.staff];
       } catch (error) {
@@ -317,33 +318,33 @@ export default {
       if (!confirm('Bạn có chắc chắn muốn xóa nhân viên này?')) return;
       
       try {
-        await axios.delete(`http://localhost:3000/api/staff/${maNV}`);
+        await axios.delete(`http://localhost:5000/api/staff/${maNV}`);
         this.staff = this.staff.filter(s => s.Ma_NV !== maNV);
         this.filterStaff();
-        alert('Xóa nhân viên thành công!');
-      } catch (error) {
-        console.error('Lỗi xóa nhân viên:', error);
-        alert('Có lỗi xảy ra khi xóa nhân viên!');
+        success('Xóa nhân viên thành công!');
+      } catch (err) {
+        console.error('Lỗi xóa nhân viên:', err);
+        error('Có lỗi xảy ra khi xóa nhân viên!');
       }
     },
     
     async submitForm() {
       try {
         if (this.editingStaff) {
-          await axios.put(`http://localhost:3000/api/staff/${this.staffForm.Ma_NV}`, this.staffForm);
+          await axios.put(`http://localhost:5000/api/staff/${this.staffForm.Ma_NV}`, this.staffForm);
           const index = this.staff.findIndex(s => s.Ma_NV === this.staffForm.Ma_NV);
           this.staff[index] = { ...this.staffForm };
         } else {
-          await axios.post('http://localhost:3000/api/staff', this.staffForm);
+          await axios.post('http://localhost:5000/api/staff', this.staffForm);
           this.staff.push({ ...this.staffForm });
         }
         
         this.filterStaff();
         this.closeModal();
-        alert(this.editingStaff ? 'Cập nhật nhân viên thành công!' : 'Thêm nhân viên thành công!');
-      } catch (error) {
-        console.error('Lỗi lưu nhân viên:', error);
-        alert('Có lỗi xảy ra khi lưu nhân viên!');
+        success(this.editingStaff ? 'Cập nhật nhân viên thành công!' : 'Thêm nhân viên thành công!');
+      } catch (err) {
+        console.error('Lỗi lưu nhân viên:', err);
+        error('Có lỗi xảy ra khi lưu nhân viên!');
       }
     },
     

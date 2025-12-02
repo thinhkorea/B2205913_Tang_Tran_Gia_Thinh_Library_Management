@@ -2,7 +2,7 @@
   <div class="view-content">
     <!-- Header -->
     <Header 
-      title="📚 Lịch Sử Mượn Sách"
+      title="Lịch Sử Mượn Sách"
       :subtitle="`Tổng số lần mượn: ${borrowStore.myBorrows.length}`"
       :userName="`${currentUser?.Ho_Lot} ${currentUser?.Ten}`"
       :showBack="true"
@@ -20,18 +20,69 @@
           <p>Bạn chưa mượn sách nào từ thư viện. Hãy quay lại để chọn sách mượn!</p>
         </div>
 
+        <!-- Filter & Sort Section -->
+        <div v-else class="filter-section">
+          <div class="filter-tabs">
+            <button 
+              @click="filterStatus = null; currentPage = 1"
+              :class="['filter-tab', { active: filterStatus === null }]"
+            >
+              Tất cả ({{ borrowStore.myBorrows.length }})
+            </button>
+            <button 
+              @click="filterStatus = 'Chờ xác nhận'; currentPage = 1"
+              :class="['filter-tab', { active: filterStatus === 'Chờ xác nhận' }]"
+            >
+              Chờ xác nhận ({{ getPendingCount() }})
+            </button>
+            <button 
+              @click="filterStatus = 'Đang mượn'; currentPage = 1"
+              :class="['filter-tab', { active: filterStatus === 'Đang mượn' }]"
+            >
+              Đang mượn ({{ getBorrowingCount() }})
+            </button>
+            <button 
+              @click="filterStatus = 'Quá hạn'; currentPage = 1"
+              :class="['filter-tab', { active: filterStatus === 'Quá hạn' }]"
+            >
+              Quá hạn ({{ getOverdueCount() }})
+            </button>
+            <button 
+              @click="filterStatus = 'Đã trả'; currentPage = 1"
+              :class="['filter-tab', { active: filterStatus === 'Đã trả' }]"
+            >
+              Đã trả ({{ getReturnedCount() }})
+            </button>
+          </div>
+        </div>
+
         <!-- Books Grid -->
-        <div v-else class="books-history-grid">
-          <div v-for="borrow in borrowStore.myBorrows" :key="borrow._id" 
-               :class="['borrow-card', borrow.trang_thai === 'Đang mượn' ? 'borrowing' : 'returned']">
+        <div v-if="groupedByDate.length === 0 && borrowStore.myBorrows.length > 0" class="no-history">
+          <i class="fas fa-search"></i>
+          <h3>Không có phiếu mượn nào</h3>
+          <p>Không tìm thấy phiếu mượn với trạng thái này</p>
+        </div>
+
+        <div v-else-if="borrowStore.myBorrows.length > 0" class="borrows-by-date">
+          <div v-for="dateGroup in paginatedData" :key="dateGroup.date" class="date-group">
+            <!-- Date Header -->
+            <div class="date-header">
+              <h3>{{ formatDateHeader(dateGroup.date) }}</h3>
+              <span class="date-count">{{ dateGroup.borrows.length }} sách</span>
+            </div>
+            
+            <!-- Books for this date -->
+            <div class="books-in-date">
+              <div v-for="borrow in dateGroup.borrows" :key="borrow._id" 
+                   :class="['borrow-card', getCardClass(borrow.trang_thai)]">
             
             <!-- Status Badge -->
             <div class="card-header">
-              <span :class="['status-badge', borrow.trang_thai === 'Đang mượn' ? 'borrowing' : 'returned']">
-                {{ borrow.trang_thai }}
+              <span :class="['status-badge', getStatusClass(borrow.trang_thai)]">
+                {{ getStatusLabel(borrow.trang_thai) }}
               </span>
-              <span :class="['days-badge', getDaysRemaining(borrow.Ngay_Tra, borrow.trang_thai)]">
-                {{ getRemainingDays(borrow.Ngay_Tra, borrow.trang_thai) }}
+              <span :class="['days-badge', getDaysRemaining(borrow.Ngay_Hen_Tra, borrow.trang_thai)]">
+                {{ getRemainingDays(borrow.Ngay_Hen_Tra, borrow.trang_thai) }}
               </span>
             </div>
 
@@ -57,43 +108,67 @@
                 </div>
                 <div class="detail-item">
                   <span class="detail-label">Hạn Trả:</span>
-                  <span class="detail-value">{{ formatDate(borrow.Ngay_Tra) || 'Chưa xác định' }}</span>
+                  <span class="detail-value">{{ formatDate(borrow.Ngay_Hen_Tra) || 'Chưa xác định' }}</span>
+                </div>
+                <div v-if="borrow.Tien_Phat > 0" class="detail-item fine-item">
+                  <span class="detail-label">Phí Phạt:</span>
+                  <span class="detail-value fine-amount">{{ formatPrice(borrow.Tien_Phat) }}</span>
                 </div>
               </div>
             </div>
 
             <!-- Action -->
             <div class="card-footer">
-              <button 
-                v-if="borrow.trang_thai === 'Đang mượn'"
-                @click="openReturnModal(borrow)"
-                class="btn-return">
+              <div v-if="borrow.trang_thai === 'Chờ xác nhận'" class="pending-message">
+                <i class="fas fa-clock"></i>
+                <span>Phiếu mượn đang chờ xác nhận. Hãy liên hệ nhân viên để biết thêm chi tiết.</span>
+              </div>
+              <div v-else-if="borrow.trang_thai === 'Đang mượn'" class="info-message">
+                <i class="fas fa-info-circle"></i>
+                <span>Vui lòng liên hệ nhân viên thư viện để trả sách</span>
+              </div>
+              <div v-else-if="borrow.trang_thai === 'Đã trả'" class="returned-message">
                 <i class="fas fa-check-circle"></i>
-                Trả Sách
-              </button>
-              <button v-else class="btn-returned">
-                <i class="fas fa-check-double"></i>
-                Đã Trả
-              </button>
+                <span>Bạn đã trả sách này</span>
+              </div>
+              <div v-else-if="borrow.trang_thai === 'Quá hạn'" class="overdue-message">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>Sách đang quá hạn trả. Vui lòng trả ngay!</span>
+              </div>
             </div>
           </div>
-        </div>
+            </div>
+            </div>
+          </div>
 
-        <!-- Toast Notifications -->
-        <div v-if="successMessage" class="toast toast-success">
-          <i class="fas fa-check-circle"></i>
-          {{ successMessage }}
-        </div>
-        <div v-if="errorMessage" class="toast toast-error">
-          <i class="fas fa-exclamation-circle"></i>
-          {{ errorMessage }}
+        <!-- Pagination Section -->
+        <div v-if="borrowStore.myBorrows.length > 0 && groupedByDate.length > itemsPerPage" class="pagination-section">
+          <button
+            class="btn-pagination"
+            :disabled="currentPage === 1"
+            @click="currentPage--"
+          >
+            <i class="fas fa-chevron-left"></i> Trang trước
+          </button>
+          
+          <span class="pagination-info">
+            Trang {{ currentPage }} / {{ totalPages }} ({{ groupedByDate.length }} ngày)
+          </span>
+          
+          <button
+            class="btn-pagination"
+            :disabled="currentPage === totalPages"
+            @click="currentPage++"
+          >
+            Trang sau <i class="fas fa-chevron-right"></i>
+          </button>
         </div>
 
         <!-- Return Book Modal -->
         <div v-if="showReturnModal" class="modal-overlay" @click="closeReturnModal">
           <div class="modal-content" @click.stop>
             <div class="modal-header">
-              <h3>✏️ Trả Sách</h3>
+              <h3>Trả Sách</h3>
               <button @click="closeReturnModal" class="modal-close">
                 <i class="fas fa-times"></i>
               </button>
@@ -115,7 +190,7 @@
                 </div>
                 <div class="info-row">
                   <span class="info-label">Hạn Trả:</span>
-                  <span class="info-value">{{ formatDate(selectedBorrow?.Ngay_Tra) }}</span>
+                  <span class="info-value">{{ formatDate(selectedBorrow?.Ngay_Hen_Tra) }}</span>
                 </div>
               </div>
 
@@ -128,11 +203,20 @@
                   class="form-input"
                   :max="today"
                 >
-              <small v-if="selectedBorrow && isOverdue(selectedBorrow.Ngay_Tra, returnForm.returnDate)" 
+              <small v-if="selectedBorrow && isOverdue(selectedBorrow.Ngay_Hen_Tra, returnForm.returnDate)" 
                      class="overdue-warning">
-                ⚠️ Trả muộn {{ getDaysOverdue(selectedBorrow.Ngay_Tra, returnForm.returnDate) }} ngày
+                Trả muộn {{ getDaysOverdue(selectedBorrow.Ngay_Hen_Tra, returnForm.returnDate) }} ngày
               </small>
             </div>
+
+            <div v-if="calculateFine(selectedBorrow?.Ngay_Hen_Tra, returnForm.returnDate, selectedBorrow?.Ma_Sach?.Don_Gia) > 0" class="fine-section">
+              <div class="fine-info">
+                <span class="fine-label">Tiền Phạt Quá Hạn:</span>
+                <span class="fine-amount">{{ formatPrice(calculateFine(selectedBorrow?.Ngay_Hen_Tra, returnForm.returnDate, selectedBorrow?.Ma_Sach?.Don_Gia)) }}</span>
+              </div>
+              <small class="fine-detail">{{ getDaysOverdue(selectedBorrow?.Ngay_Hen_Tra, returnForm.returnDate) }} ngày × {{ formatPrice(selectedBorrow?.Ma_Sach?.Don_Gia) }}/ngày</small>
+            </div>
+            
           </div>
 
           <div class="modal-footer">
@@ -158,6 +242,7 @@
 import axios from 'axios';
 import { useBorrowStore } from '../stores/borrowStore';
 import { useBookStore } from '../stores/bookStore';
+import { useNavigationStore } from '../stores/navigationStore';
 import Header from './Header.vue';
 
 export default {
@@ -174,7 +259,8 @@ export default {
   setup() {
     const borrowStore = useBorrowStore();
     const bookStore = useBookStore();
-    return { borrowStore, bookStore };
+    const navigationStore = useNavigationStore();
+    return { borrowStore, bookStore, navigationStore };
   },
   data() {
     return {
@@ -185,21 +271,90 @@ export default {
       },
       returnLoading: false,
       today: new Date().toISOString().split('T')[0],
-      successMessage: '',
-      errorMessage: '',
+      filterStatus: null,
+      currentPage: 1,
+      itemsPerPage: 9,
     };
   },
   mounted() {
     if (this.currentUser && this.currentUser._id) {
       this.borrowStore.loadMyBorrows(this.currentUser._id);
       this.borrowStore.calculateOverdueCount();
+      
+      // Load saved state from navigationStore
+      const state = this.navigationStore.borrowHistoryState;
+      if (state) {
+        this.filterStatus = state.filterStatus || null;
+        this.currentPage = state.currentPage || 1;
+      }
     }
+  },
+  beforeUnmount() {
+    // Save state before leaving component
+    this.navigationStore.saveBorrowHistoryState({
+      filterStatus: this.filterStatus,
+      currentPage: this.currentPage,
+    });
+  },
+  computed: {
+    groupedByDate() {
+      // Filter by status
+      let filtered = this.borrowStore.myBorrows;
+      if (this.filterStatus !== null) {
+        filtered = filtered.filter(b => b.trang_thai === this.filterStatus);
+      }
+      
+      // Sort by Ngay_Muon (newest first)
+      const sorted = [...filtered].sort((a, b) => 
+        new Date(b.Ngay_Muon) - new Date(a.Ngay_Muon)
+      );
+      
+      const groups = {};
+      sorted.forEach(borrow => {
+        const date = borrow.Ngay_Muon ? new Date(borrow.Ngay_Muon).toISOString().split('T')[0] : 'unknown';
+        if (!groups[date]) {
+          groups[date] = { date, borrows: [] };
+        }
+        groups[date].borrows.push(borrow);
+      });
+      
+      // Return as array
+      return Object.values(groups);
+    },
+    totalPages() {
+      return Math.ceil(this.groupedByDate.length / this.itemsPerPage);
+    },
+    paginatedData() {
+      const start = (this.currentPage - 1) * this.itemsPerPage;
+      const end = start + this.itemsPerPage;
+      return this.groupedByDate.slice(start, end);
+    },
   },
   methods: {
     formatDate(dateString) {
       if (!dateString) return '-';
       const date = new Date(dateString);
       return date.toLocaleDateString('vi-VN');
+    },
+    formatDateHeader(dateString) {
+      if (!dateString) return 'Không xác định';
+      const date = new Date(dateString + 'T00:00:00');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      const dateObj = new Date(dateString + 'T00:00:00');
+      dateObj.setHours(0, 0, 0, 0);
+      
+      if (dateObj.getTime() === today.getTime()) {
+        return 'Hôm nay (' + dateObj.toLocaleDateString('vi-VN') + ')';
+      } else if (dateObj.getTime() === yesterday.getTime()) {
+        return 'Hôm qua (' + dateObj.toLocaleDateString('vi-VN') + ')';
+      } else {
+        return '' + dateObj.toLocaleDateString('vi-VN');
+      }
     },
     getRemainingDays(returnDate, status) {
       if (status === 'Đã trả') {
@@ -228,8 +383,8 @@ export default {
       }
     },
     getDaysRemaining(returnDate, status) {
-      if (status === 'Đã trả') {
-        return 'returned';
+      if (status === 'Đã trả' || status === 'Chờ xác nhận') {
+        return 'neutral';
       }
       
       if (!returnDate) {
@@ -252,6 +407,41 @@ export default {
       } else {
         return 'normal';
       }
+    },
+    getCardClass(status) {
+      if (status === 'Chờ xác nhận') return 'pending';
+      if (status === 'Đang mượn') return 'borrowing';
+      if (status === 'Đã trả') return 'returned';
+      if (status === 'Quá hạn') return 'overdue';
+      return 'normal';
+    },
+    getStatusClass(status) {
+      if (status === 'Chờ xác nhận') return 'pending';
+      if (status === 'Đang mượn') return 'borrowing';
+      if (status === 'Đã trả') return 'returned';
+      if (status === 'Quá hạn') return 'overdue';
+      return 'normal';
+    },
+    getStatusLabel(status) {
+      const labels = {
+        'Chờ xác nhận': 'Chờ xác nhận',
+        'Đang mượn': 'Đang mượn',
+        'Đã trả': 'Đã trả',
+        'Quá hạn': 'Quá hạn'
+      };
+      return labels[status] || status;
+    },
+    getPendingCount() {
+      return this.borrowStore.myBorrows.filter(b => b.trang_thai === 'Chờ xác nhận').length;
+    },
+    getBorrowingCount() {
+      return this.borrowStore.myBorrows.filter(b => b.trang_thai === 'Đang mượn').length;
+    },
+    getOverdueCount() {
+      return this.borrowStore.myBorrows.filter(b => b.trang_thai === 'Quá hạn').length;
+    },
+    getReturnedCount() {
+      return this.borrowStore.myBorrows.filter(b => b.trang_thai === 'Đã trả').length;
     },
     openReturnModal(borrow) {
       this.selectedBorrow = borrow;
@@ -278,6 +468,28 @@ export default {
       const diff = returnDateObj - deadlineDate;
       return Math.ceil(diff / (1000 * 60 * 60 * 24));
     },
+    calculateFine(deadline, returnDate, bookPrice) {
+      if (!deadline || !returnDate || !bookPrice) return 0;
+      
+      const deadlineDate = new Date(deadline);
+      deadlineDate.setHours(0, 0, 0, 0);
+      const returnDateObj = new Date(returnDate);
+      returnDateObj.setHours(0, 0, 0, 0);
+      
+      if (returnDateObj <= deadlineDate) {
+        return 0; // Không phạt nếu trả đúng hạn
+      }
+      
+      // Tiền phạt = Giá sách × Số ngày trễ
+      const daysLate = Math.ceil((returnDateObj - deadlineDate) / (1000 * 60 * 60 * 24));
+      return daysLate * bookPrice;
+    },
+    formatPrice(price) {
+      return new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND',
+      }).format(price || 0);
+    },
     async handleReturn() {
       if (!this.selectedBorrow || !this.returnForm.returnDate) {
         this.showError('Vui lòng chọn ngày trả');
@@ -286,12 +498,17 @@ export default {
 
       this.returnLoading = true;
       const bookName = this.selectedBorrow.Ma_Sach?.Ten_Sach;
+      const fine = this.calculateFine(
+        this.selectedBorrow.Ngay_Hen_Tra, 
+        this.returnForm.returnDate,
+        this.selectedBorrow.Ma_Sach?.Don_Gia
+      );
       
       try {
-        await axios.put(
+        const response = await axios.put(
           `http://localhost:5000/api/borrows/${this.selectedBorrow._id}`,
           {
-            Ngay_Tra_Thuc_Te: this.returnForm.returnDate,
+            Ngay_Tra: this.returnForm.returnDate,
             trang_thai: 'Đã trả',
           }
         );
@@ -301,7 +518,12 @@ export default {
         await this.bookStore.loadBooks();
 
         this.closeReturnModal();
-        this.showSuccess(`Trả sách "${bookName}" thành công!`);
+        
+        let message = `Trả sách "${bookName}" thành công!`;
+        if (fine > 0) {
+          message += ` Phí phạt quá hạn: ${this.formatPrice(fine)}`;
+        }
+        this.showSuccess(message);
       } catch (error) {
         console.error('Error returning book:', error);
         this.showError(error.response?.data?.message || 'Không thể trả sách. Vui lòng thử lại');
@@ -310,18 +532,10 @@ export default {
       }
     },
     showSuccess(message) {
-      this.successMessage = message;
-      this.errorMessage = '';
-      setTimeout(() => {
-        this.successMessage = '';
-      }, 3000);
+      this.$toast.success(message, { autoClose: 3000 });
     },
     showError(message) {
-      this.errorMessage = message;
-      this.successMessage = '';
-      setTimeout(() => {
-        this.errorMessage = '';
-      }, 3000);
+      this.$toast.error(message, { autoClose: 3000 });
     },
     handleLogout() {
       localStorage.clear();
@@ -428,11 +642,93 @@ export default {
   font-size: 0.95rem;
 }
 
+/* Filter Tabs */
+.filter-section {
+  margin-bottom: 2rem;
+}
+
+.filter-tabs {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 1rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.filter-tab {
+  padding: 0.6rem 1.2rem;
+  border: 2px solid #e5e7eb;
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #666;
+  transition: all 0.3s ease;
+}
+
+.filter-tab:hover {
+  border-color: #667eea;
+  color: #667eea;
+}
+
+.filter-tab.active {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border-color: #667eea;
+}
+
 /* Books History Grid */
 .books-history-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 1.5rem;
+}
+
+/* Borrows by Date */
+.borrows-by-date {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.date-group {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.date-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.date-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.date-count {
+  background: rgba(255, 255, 255, 0.25);
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.books-in-date {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+  padding: 1.5rem;
 }
 
 /* Borrow Card */
@@ -515,9 +811,82 @@ export default {
   text-align: right;
 }
 
+.detail-item.fine-item {
+  background: rgba(239, 68, 68, 0.08);
+  padding: 0.5rem;
+  border-radius: 6px;
+  margin-top: 0.5rem;
+}
+
+.detail-item.fine-item .fine-amount {
+  color: #ef4444;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
 /* Card Footer */
 .card-footer {
   padding: 0.75rem 1.25rem 1.25rem;
+}
+
+.info-message {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(99, 102, 241, 0.1));
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 8px;
+  color: #1e40af;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.pending-message {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1));
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 8px;
+  color: #92400e;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.returned-message {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.1));
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 8px;
+  color: #065f46;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.overdue-message {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.1));
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  color: #7f1d1d;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.info-message i,
+.pending-message i,
+.returned-message i,
+.overdue-message i {
+  font-size: 1rem;
+  flex-shrink: 0;
 }
 
 /* Status & Days Badges */
@@ -537,9 +906,19 @@ export default {
   color: #667eea;
 }
 
+.status-badge.pending {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
 .status-badge.returned {
   background: rgba(16, 185, 129, 0.15);
   color: #10b981;
+}
+
+.status-badge.overdue {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
 }
 
 .days-badge {
@@ -768,6 +1147,41 @@ export default {
   color: #ef4444;
   font-size: 0.85rem;
   margin-top: 0.5rem;
+  font-weight: 500;
+}
+
+.fine-section {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 2px solid #f59e0b;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.fine-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.fine-label {
+  font-weight: 600;
+  color: #92400e;
+  font-size: 0.95rem;
+}
+
+.fine-amount {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #d97706;
+}
+
+.fine-detail {
+  display: block;
+  color: #b45309;
+  font-size: 0.85rem;
   font-weight: 500;
 }
 
@@ -1314,6 +1728,67 @@ export default {
   .btn-cancel,
   .btn-confirm {
     width: 100%;
+  }
+}
+
+/* Pagination Styles */
+.pagination-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1.5rem;
+  margin-top: 2rem;
+  padding: 2rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.pagination-info {
+  font-weight: 600;
+  color: #667eea;
+  min-width: 200px;
+  text-align: center;
+}
+
+.btn-pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: white;
+  color: #667eea;
+  border: 2px solid #667eea;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-pagination:hover:not(:disabled) {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-pagination:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .pagination-section {
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .pagination-info {
+    width: 100%;
+  }
+
+  .btn-pagination {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
   }
 }
 </style>

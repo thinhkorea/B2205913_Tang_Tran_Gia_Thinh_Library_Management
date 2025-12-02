@@ -3,14 +3,13 @@
     <div class="login-container">
       <div class="login-box">
         <div class="login-header">
-          <h1>📚 Quản Lý Thư Viện</h1>
+          <h1>Quản Lý Thư Viện</h1>
           <p>Khu Vực Quản Trị Viên</p>
         </div>
 
         <form @submit.prevent="handleLogin" class="login-form">
           <div class="form-group">
             <label>
-              <span class="label-icon">👤</span>
               <span>Mã Nhân Viên</span>
             </label>
             <input
@@ -24,7 +23,6 @@
 
           <div class="form-group">
             <label>
-              <span class="label-icon">🔐</span>
               <span>Mật Khẩu</span>
             </label>
             <input
@@ -159,11 +157,6 @@ export default {
   color: #333;
   margin-bottom: 12px;
   font-size: 16px;
-}
-
-.label-icon {
-  font-size: 24px;
-  margin-right: 10px;
 }
 
 .form-input {

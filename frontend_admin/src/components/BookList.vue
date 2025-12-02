@@ -1,7 +1,7 @@
 <template>
   <div class="book-container">
     <div class="header-section">
-      <h2>📚 Quản Lý Sách</h2>
+      <h2>Quản Lý Sách</h2>
       <div class="header-controls">
         <button class="btn-filter" @click="showFilters = !showFilters">
           <i class="fas fa-filter"></i> Lọc
@@ -152,21 +152,27 @@
 
           <div class="form-row">
             <div class="form-group full-width">
-              <label for="hinh-anh">URL Hình Ảnh</label>
-              <input 
-                id="hinh-anh"
-                v-model="formData.Hinh_Anh" 
-                type="url" 
-                placeholder="https://example.com/image.jpg"
-                class="form-input"
-              />
+              <label for="hinh-anh">Hình Ảnh Bìa Sách</label>
+              <div class="file-input-wrapper">
+                <input 
+                  id="hinh-anh"
+                  ref="fileInput"
+                  type="file" 
+                  accept="image/*"
+                  @change="handleImageSelect"
+                  class="file-input"
+                />
+                <label for="hinh-anh" class="file-input-label">
+                  <i class="fas fa-cloud-upload-alt"></i>
+                  {{ imageFileName || "Chọn ảnh từ máy tính" }}
+                </label>
+              </div>
               
-              <div v-if="formData.Hinh_Anh" class="image-preview-section">
+              <div v-if="imagePreview" class="image-preview-section">
                 <div class="image-preview">
                   <img 
-                    :src="formData.Hinh_Anh" 
+                    :src="imagePreview" 
                     alt="Preview" 
-                    @error="handleImageError"
                     class="preview-img"
                   />
                 </div>
@@ -213,8 +219,9 @@
     <div class="books-gallery">
       <div class="book-card" v-for="book in filteredBooks" :key="book._id">
         <div class="book-image">
-          <img :src="book.Hinh_Anh || 'https://via.placeholder.com/300x400?text=No+Image'" 
+          <img :src="getImageUrl(book.Hinh_Anh)" 
                :alt="book.Ten_Sach" 
+               @error="handleImageError"
                loading="lazy">
           <div class="book-overlay">
             <button class="btn-edit-card" @click="editBook(book, $event)" title="Chỉnh sửa">
@@ -341,6 +348,9 @@ export default {
       showDeleteModal: false,
       bookToDelete: null,
       modalPosition: { x: 0, y: 0 },
+      imageFile: null,
+      imageFileName: "",
+      imagePreview: "",
     };
   },
   computed: {
@@ -492,6 +502,12 @@ export default {
       this.editingId = null;
       this.error = "";
       this.success = "";
+      this.imageFile = null;
+      this.imageFileName = "";
+      this.imagePreview = "";
+      if (this.$refs.fileInput) {
+        this.$refs.fileInput.value = "";
+      }
     },
     
     cancelForm() {
@@ -525,24 +541,57 @@ export default {
         this.error = "Năm xuất bản không hợp lệ!";
         return;
       }
+
+      // Kiểm tra ảnh khi thêm mới
+      if (!this.isEditing && !this.imageFile) {
+        this.error = "Vui lòng chọn hình ảnh bìa sách!";
+        return;
+      }
       
       try {
         // Hiển thị loading
         this.isLoading = true;
         this.error = "";
         const action = this.isEditing ? "Cập nhật" : "Thêm";
-        this.success = `⏳ Đang ${action.toLowerCase()} sách...`;
+        this.success = `Đang ${action.toLowerCase()} sách...`;
+        
+        // Tạo FormData để gửi file
+        const formDataToSend = new FormData();
+        formDataToSend.append("Ma_Sach", this.formData.Ma_Sach);
+        formDataToSend.append("Ten_Sach", this.formData.Ten_Sach);
+        formDataToSend.append("Don_Gia", this.formData.Don_Gia);
+        formDataToSend.append("So_Quyen", this.formData.So_Quyen);
+        formDataToSend.append("Nam_Xuat_Ban", this.formData.Nam_Xuat_Ban);
+        formDataToSend.append("Tac_Gia", this.formData.Tac_Gia);
+        formDataToSend.append("Ma_NXB", this.formData.Ma_NXB);
+        
+        // Thêm file ảnh nếu có file mới
+        if (this.imageFile) {
+          formDataToSend.append("Hinh_Anh", this.imageFile);
+        } else if (this.isEditing && this.formData.Hinh_Anh) {
+          // Nếu edit mà không thay đổi ảnh, giữ ảnh cũ
+          // Không append Hinh_Anh, backend sẽ giữ ảnh cũ
+        }
         
         if (this.isEditing) {
           await axios.put(
             `http://localhost:5000/api/books/${this.editingId}`,
-            this.formData
+            formDataToSend,
+            {
+              headers: {
+                "Content-Type": "multipart/form-data",
+              },
+            }
           );
-          this.success = `✅ ${action} "${this.formData.Ten_Sach}" thành công!`;
+          this.success = `${action} "${this.formData.Ten_Sach}" thành công!`;
           console.log('Updated book:', this.formData.Ten_Sach);
         } else {
-          await axios.post("http://localhost:5000/api/books", this.formData);
-          this.success = `✅ ${action} "${this.formData.Ten_Sach}" thành công!`;
+          await axios.post("http://localhost:5000/api/books", formDataToSend, {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          });
+          this.success = `${action} "${this.formData.Ten_Sach}" thành công!`;
           console.log('Added book:', this.formData.Ten_Sach);
         }
         
@@ -595,6 +644,12 @@ export default {
       
       this.formData = processedBook;
       
+      // Set preview ảnh cũ
+      if (book.Hinh_Anh) {
+        this.imagePreview = this.getImageUrl(book.Hinh_Anh);
+        this.imageFileName = "Ảnh hiện tại";
+      }
+      
       console.log('Editing book:', book.Ten_Sach);
     },
     
@@ -625,8 +680,8 @@ export default {
         this.error = "";
         
         await axios.delete(`http://localhost:5000/api/books/${this.bookToDelete._id}`);
-        
-        this.success = `✅ Đã xóa "${this.bookToDelete.Ten_Sach}" thành công!`;
+    
+        this.success = `Đã xóa "${this.bookToDelete.Ten_Sach}" thành công!`;
         this.showDeleteModal = false;
         this.bookToDelete = null;
         this.fetchBooks();
@@ -663,7 +718,52 @@ export default {
     },
     
     handleImageError(event) {
-      event.target.src = 'https://via.placeholder.com/200x260?text=L%E1%BB%97i+%E1%BA%A3nh';
+      event.target.src = 'https://via.placeholder.com/300x400?text=L%E1%BB%97i+%E1%BA%A3nh';
+    },
+    
+    getImageUrl(imagePath) {
+      // Nếu là URL (http/https) thì giữ nguyên
+      if (imagePath && imagePath.startsWith("http")) {
+        return imagePath;
+      }
+      // Nếu là Base64 thì giữ nguyên
+      if (imagePath && imagePath.startsWith("data:")) {
+        return imagePath;
+      }
+      // Nếu là filename thì build URL /uploads/filename
+      if (imagePath) {
+        return `http://localhost:5000/uploads/${imagePath}`;
+      }
+      // Nếu không có ảnh thì dùng placeholder
+      return 'https://via.placeholder.com/300x400?text=No+Image';
+    },
+    
+    handleImageSelect(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      
+      // Kiểm tra loại file
+      if (!file.type.startsWith("image/")) {
+        this.error = "Vui lòng chọn file ảnh!";
+        return;
+      }
+      
+      // Kiểm tra kích thước (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        this.error = "Kích thước ảnh không được vượt quá 5MB!";
+        return;
+      }
+      
+      this.imageFile = file;
+      this.imageFileName = file.name;
+      this.error = "";
+      
+      // Tạo preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        this.imagePreview = e.target.result;
+      };
+      reader.readAsDataURL(file);
     },
     
     previewCurrentBook() {
@@ -990,6 +1090,42 @@ export default {
   color: #999;
   margin-top: 6px;
   font-style: italic;
+}
+
+/* File Input Styles */
+.file-input-wrapper {
+  position: relative;
+  display: block;
+}
+
+.file-input {
+  display: none;
+}
+
+.file-input-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 30px 20px;
+  border: 2px dashed #667eea;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  color: #667eea;
+  text-align: center;
+}
+
+.file-input-label:hover {
+  border-color: #764ba2;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  color: #764ba2;
+}
+
+.file-input-label i {
+  font-size: 24px;
 }
 
 /* Image Preview */
