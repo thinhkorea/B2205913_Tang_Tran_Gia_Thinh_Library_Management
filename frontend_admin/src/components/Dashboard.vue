@@ -16,7 +16,7 @@
           <div class="user-info">
             <div class="user-details">
               <span class="user-name">{{ currentUser?.Ho_Ten || "Admin" }}</span>
-              <span class="user-role">Quản trị viên</span>
+              <span class="user-role">{{ currentUser?.Role === 'admin' ? 'Quản trị viên' : 'Nhân viên' }}</span>
             </div>
             <div class="user-avatar">
               <i class="fas fa-user"></i>
@@ -76,6 +76,7 @@
             <span>Nhà xuất bản</span>
           </button>
           <button 
+            v-if="currentUser?.Role === 'admin'"
             @click="setActiveView('staff')"
             :class="['nav-item', { active: activeView === 'staff' }]">
             <i class="fas fa-user-tie"></i>
@@ -145,7 +146,7 @@
                     text-transform: uppercase;
                   "
                 >
-                  Tổng Sách
+                  Tổng Đầu Sách
                 </h6>
                 <div
                   class="rounded p-1"
@@ -159,12 +160,12 @@
               </div>
               <h3
                 class="fw-bold mb-2"
-                style="color: #ffffff; font-size: 1.5rem"
+                style="color: #1a1a1a; font-size: 1.5rem"
               >
-                2,456
+                {{ stats.totalBooks }}
               </h3>
               <small style="color: #10b981">
-                <i class="fas fa-arrow-up"></i> +12%
+                <i class="fas fa-copy"></i> {{ stats.totalCopies }} quyển
               </small>
             </div>
           </div>
@@ -209,12 +210,12 @@
               </div>
               <h3
                 class="fw-bold mb-2"
-                style="color: #ffffff; font-size: 1.5rem"
+                style="color: #1a1a1a; font-size: 1.5rem"
               >
-                1,832
+                {{ stats.totalReaders }}
               </h3>
               <small style="color: #10b981">
-                <i class="fas fa-arrow-up"></i> +8%
+                <i class="fas fa-users"></i> Độc giả
               </small>
             </div>
           </div>
@@ -259,12 +260,12 @@
               </div>
               <h3
                 class="fw-bold mb-2"
-                style="color: #ffffff; font-size: 1.5rem"
+                style="color: #1a1a1a; font-size: 1.5rem"
               >
-                542
+                {{ stats.currentBorrows }}
               </h3>
               <small style="color: #f59e0b">
-                <i class="fas fa-minus"></i> -2%
+                <i class="fas fa-book-open"></i> Đang mượn
               </small>
             </div>
           </div>
@@ -309,12 +310,12 @@
               </div>
               <h3
                 class="fw-bold mb-2"
-                style="color: #ffffff; font-size: 1.5rem"
+                style="color: #1a1a1a; font-size: 1.5rem"
               >
-                12
+                {{ stats.totalStaff }}
               </h3>
               <small style="color: #10b981">
-                <i class="fas fa-plus"></i> +1
+                <i class="fas fa-user-tie"></i> Nhân viên
               </small>
             </div>
           </div>
@@ -328,7 +329,7 @@
           <div
             class="card border-0 shadow-sm"
             style="
-              background: rgba(26, 26, 46, 0.8);
+              background: white;
               backdrop-filter: blur(10px);
             "
           >
@@ -355,99 +356,69 @@
               </div>
             </div>
             <div class="card-body p-3">
-              <!-- Timeline Item 1 -->
-              <div
-                class="d-flex gap-2 mb-3 pb-3"
-                style="border-bottom: 1px solid #2a2a3e"
-              >
-                <div
-                  class="d-flex align-items-center justify-content-center flex-shrink-0 rounded-circle"
-                  style="
-                    width: 40px;
-                    height: 40px;
-                    background: linear-gradient(135deg, #10b981, #34d399);
-                    color: white;
-                    font-size: 1rem;
-                  "
-                >
-                  <i class="fas fa-plus-circle"></i>
-                </div>
-                <div style="flex: 1">
-                  <h6
-                    class="fw-semibold mb-1"
-                    style="color: #ffffff; font-size: 0.95rem"
-                  >
-                    Sách mới được thêm
-                  </h6>
-                  <p class="mb-1" style="color: #a0a0b0; font-size: 0.8rem">
-                    "Lập trình Web với Node.js" được thêm
-                  </p>
-                  <small style="color: #6b7280; font-size: 0.75rem">
-                    <i class="far fa-clock"></i> 10 phút trước
-                  </small>
+              <!-- Loading -->
+              <div v-if="isLoadingStats" class="text-center py-3">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                  <span class="visually-hidden">Đang tải...</span>
                 </div>
               </div>
-
-              <!-- Timeline Item 2 -->
-              <div
-                class="d-flex gap-2 mb-3 pb-3"
-                style="border-bottom: 1px solid #2a2a3e"
-              >
-                <div
-                  class="d-flex align-items-center justify-content-center flex-shrink-0 rounded-circle"
-                  style="
-                    width: 40px;
-                    height: 40px;
-                    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-                    color: white;
-                    font-size: 1rem;
-                  "
-                >
-                  <i class="fas fa-user-plus"></i>
-                </div>
-                <div style="flex: 1">
-                  <h6
-                    class="fw-semibold mb-1"
-                    style="color: #ffffff; font-size: 0.95rem"
-                  >
-                    Độc giả mới đăng ký
-                  </h6>
-                  <p class="mb-1" style="color: #a0a0b0; font-size: 0.8rem">
-                    Nguyễn Văn An đã đăng ký thành viên
-                  </p>
-                  <small style="color: #6b7280; font-size: 0.75rem">
-                    <i class="far fa-clock"></i> 25 phút trước
-                  </small>
-                </div>
+              <!-- No activities -->
+              <div v-else-if="recentActivities.length === 0" class="text-center py-3">
+                <p style="color: #666; font-size: 0.9rem">
+                  <i class="fas fa-info-circle me-2"></i>
+                  Chưa có hoạt động nào
+                </p>
               </div>
-
-              <!-- Timeline Item 3 -->
-              <div class="d-flex gap-2">
-                <div
-                  class="d-flex align-items-center justify-content-center flex-shrink-0 rounded-circle"
-                  style="
-                    width: 40px;
-                    height: 40px;
-                    background: linear-gradient(135deg, #f59e0b, #fbbf24);
-                    color: white;
-                    font-size: 1rem;
-                  "
+              <!-- Activities list -->
+              <div v-else class="activity-list">
+                <div 
+                  v-for="activity in recentActivities" 
+                  :key="activity.id" 
+                  class="activity-item d-flex align-items-start mb-3 pb-3"
+                  style="border-bottom: 1px solid #eee;"
                 >
-                  <i class="fas fa-exclamation-triangle"></i>
-                </div>
-                <div style="flex: 1">
-                  <h6
-                    class="fw-semibold mb-1"
-                    style="color: #ffffff; font-size: 0.95rem"
+                  <div 
+                    class="activity-icon me-3 d-flex align-items-center justify-content-center rounded-circle"
+                    :style="{
+                      width: '40px',
+                      height: '40px',
+                      minWidth: '40px',
+                      background: activity.type === 'return' ? 'linear-gradient(135deg, #10b981, #059669)' 
+                        : activity.type === 'overdue' ? 'linear-gradient(135deg, #ef4444, #dc2626)'
+                        : 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                      color: 'white'
+                    }"
                   >
-                    Sách quá hạn trả
-                  </h6>
-                  <p class="mb-1" style="color: #a0a0b0; font-size: 0.8rem">
-                    5 cuốn sách đã quá hạn, cần liên hệ độc giả
-                  </p>
-                  <small style="color: #6b7280; font-size: 0.75rem">
-                    <i class="far fa-clock"></i> 1 giờ trước
-                  </small>
+                    <i :class="activity.type === 'return' ? 'fas fa-check' : activity.type === 'overdue' ? 'fas fa-exclamation' : 'fas fa-book'"></i>
+                  </div>
+                  <div class="activity-content flex-grow-1">
+                    <p class="mb-1" style="color: #1a1a1a; font-size: 0.9rem; font-weight: 500;">
+                      <span style="color: #6366f1; font-weight: 600;">{{ activity.readerName }}</span>
+                      {{ activity.type === 'return' ? 'đã trả sách' : activity.type === 'overdue' ? 'quá hạn trả' : 'đã mượn sách' }}
+                    </p>
+                    <p class="mb-1" style="color: #666; font-size: 0.85rem;">
+                      <i class="fas fa-book-open me-1"></i>{{ activity.bookTitle }}
+                    </p>
+                    <small style="color: #999;">
+                      <i class="fas fa-clock me-1"></i>
+                      {{ formatDateTime(activity.date) }}
+                    </small>
+                  </div>
+                  <span 
+                    class="badge"
+                    :style="{
+                      background: activity.type === 'return' ? '#dcfce7' 
+                        : activity.type === 'overdue' ? '#fee2e2'
+                        : '#dbeafe',
+                      color: activity.type === 'return' ? '#166534' 
+                        : activity.type === 'overdue' ? '#991b1b'
+                        : '#1e40af',
+                      fontSize: '0.75rem',
+                      padding: '4px 8px'
+                    }"
+                  >
+                    {{ activity.status }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -460,7 +431,7 @@
           <div
             class="card border-0 shadow-sm mb-3"
             style="
-              background: rgba(26, 26, 46, 0.8);
+              background: white;
               backdrop-filter: blur(10px);
             "
           >
@@ -489,16 +460,16 @@
               >
                 <i class="fas fa-user"></i>
               </div>
-              <h5 class="fw-bold mb-1" style="color: #ffffff">
+              <h5 class="fw-bold mb-1" style="color: #1a1a1a">
                 {{ currentUser?.Ho_Ten || "Quản trị viên" }}
               </h5>
-              <p class="mb-3" style="color: #a0a0b0; font-size: 0.9rem">
+              <p class="mb-3" style="color: #666; font-size: 0.9rem">
                 Administrator
               </p>
               <div class="row text-start">
                 <div class="col-12 mb-2">
-                  <small style="color: #a0a0b0">Mã nhân viên:</small>
-                  <div style="color: #ffffff; font-weight: 600">
+                  <small style="color: #999">Mã nhân viên:</small>
+                  <div style="color: #1a1a1a; font-weight: 600">
                     {{ currentUser?.Ma_Nhan_Vien || "NV001" }}
                   </div>
                 </div>
@@ -507,83 +478,6 @@
                   <div style="color: #10b981; font-weight: 600">
                     <i class="fas fa-circle" style="font-size: 0.5rem"></i> Đang hoạt động
                   </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Quick Actions -->
-          <div
-            class="card border-0 shadow-sm"
-            style="
-              background: rgba(26, 26, 46, 0.8);
-              backdrop-filter: blur(10px);
-            "
-          >
-            <div
-              class="card-header border-0 px-3 py-2"
-              style="
-                background: linear-gradient(135deg, #6366f1, #8b5cf6);
-                border-bottom: 1px solid #2a2a3e;
-              "
-            >
-              <h5 class="mb-0 fw-bold text-white" style="font-size: 1rem">
-                <i class="fas fa-bolt me-2"></i>Thao Tác Nhanh
-              </h5>
-            </div>
-            <div class="card-body p-3">
-              <div class="row g-2">
-                <div class="col-6">
-                  <button
-                    class="btn w-100 text-white d-flex flex-column align-items-center py-3"
-                    style="
-                      background: linear-gradient(135deg, #10b981, #34d399);
-                      border: none;
-                      border-radius: 8px;
-                    "
-                  >
-                    <i class="fas fa-plus-circle mb-1" style="font-size: 1.2rem"></i>
-                    <span style="font-size: 0.8rem">Thêm Sách</span>
-                  </button>
-                </div>
-                <div class="col-6">
-                  <button
-                    class="btn w-100 text-white d-flex flex-column align-items-center py-3"
-                    style="
-                      background: linear-gradient(135deg, #a78bfa, #c4b5fd);
-                      border: none;
-                      border-radius: 8px;
-                    "
-                  >
-                    <i class="fas fa-user-plus mb-1" style="font-size: 1.2rem"></i>
-                    <span style="font-size: 0.8rem">Thêm Độc Giả</span>
-                  </button>
-                </div>
-                <div class="col-6">
-                  <button
-                    class="btn w-100 text-white d-flex flex-column align-items-center py-3"
-                    style="
-                      background: linear-gradient(135deg, #f59e0b, #fbbf24);
-                      border: none;
-                      border-radius: 8px;
-                    "
-                  >
-                    <i class="fas fa-book-open mb-1" style="font-size: 1.2rem"></i>
-                    <span style="font-size: 0.8rem">Mượn Sách</span>
-                  </button>
-                </div>
-                <div class="col-6">
-                  <button
-                    class="btn w-100 text-white d-flex flex-column align-items-center py-3"
-                    style="
-                      background: linear-gradient(135deg, #ef4444, #f87171);
-                      border: none;
-                      border-radius: 8px;
-                    "
-                  >
-                    <i class="fas fa-undo-alt mb-1" style="font-size: 1.2rem"></i>
-                    <span style="font-size: 0.8rem">Trả Sách</span>
-                  </button>
                 </div>
               </div>
             </div>
@@ -621,7 +515,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, onUnmounted, computed } from "vue";
+import axios from "axios";
 import BookList from './BookList.vue';
 import ReaderList from './ReaderList.vue';
 import BorrowList from './BorrowList.vue';
@@ -632,6 +527,7 @@ import FineList from './FineList.vue';
 import Statistics from './Statistics.vue';
 import { success, error } from '../utils/toast';
 import { useAdminNavigationStore } from '../stores/adminNavigationStore';
+import socketService from '../utils/socket';
 
 const props = defineProps({
   currentUser: {
@@ -647,10 +543,129 @@ const navStore = useAdminNavigationStore();
 // Expose activeView from store
 const activeView = computed(() => navStore.activeView);
 
+// Dashboard stats
+const stats = ref({
+  totalBooks: 0,
+  totalCopies: 0,
+  totalReaders: 0,
+  currentBorrows: 0,
+  totalStaff: 0,
+});
+
+const recentActivities = ref([]);
+const isLoadingStats = ref(false);
+let pollInterval = null;
+
 onMounted(() => {
   // Load saved navigation state
   navStore.loadState();
+  // Load dashboard stats
+  loadDashboardStats();
+  
+  // Socket connection for real-time updates
+  try {
+    socketService.connect();
+    
+    socketService.on('books:updated', () => {
+      console.log('Real-time: books updated');
+      loadDashboardStats();
+    });
+    
+    socketService.on('borrow:updated', () => {
+      console.log('Real-time: borrow updated');
+      loadDashboardStats();
+    });
+    
+    socketService.on('borrow:created', () => {
+      console.log('Real-time: borrow created');
+      loadDashboardStats();
+    });
+  } catch (e) {
+    console.warn('Socket connection failed:', e);
+  }
+  
+  // Polling backup every 5 seconds
+  pollInterval = setInterval(() => {
+    loadDashboardStats();
+  }, 5000);
 });
+
+onUnmounted(() => {
+  // Cleanup socket listeners
+  try {
+    socketService.off('books:updated');
+    socketService.off('borrow:updated');
+    socketService.off('borrow:created');
+  } catch (e) {
+    console.warn('Socket cleanup error:', e);
+  }
+  
+  // Clear polling interval
+  if (pollInterval) {
+    clearInterval(pollInterval);
+    pollInterval = null;
+  }
+});
+
+const loadDashboardStats = async () => {
+  isLoadingStats.value = true;
+  try {
+    const [booksRes, readersRes, borrowsRes, staffRes] = await Promise.all([
+      axios.get('http://localhost:5000/api/books?limit=1000'),
+      axios.get('http://localhost:5000/api/readers'),
+      axios.get('http://localhost:5000/api/borrows'),
+      axios.get('http://localhost:5000/api/staff'),
+    ]);
+
+    // Books API returns { data: [...], pagination: {...} }
+    const books = booksRes.data?.data || (Array.isArray(booksRes.data) ? booksRes.data : []);
+    const borrows = Array.isArray(borrowsRes.data) ? borrowsRes.data : [];
+    
+    stats.value.totalBooks = books.length;
+    stats.value.totalCopies = books.reduce((sum, book) => sum + (book.So_Quyen || 0), 0);
+    stats.value.totalReaders = Array.isArray(readersRes.data) ? readersRes.data.length : 0;
+    stats.value.currentBorrows = borrows.filter(b => b.trang_thai === 'Đang mượn').length;
+    stats.value.totalStaff = Array.isArray(staffRes.data) ? staffRes.data.length : 0;
+    
+    // Lấy hoạt động gần đây (sắp xếp theo ngày mượn/trả mới nhất)
+    const activities = borrows.map(b => {
+      const isReturned = b.trang_thai === 'Đã trả';
+      const isOverdue = b.trang_thai === 'Quá hạn';
+      
+      // Lấy thông tin độc giả (populate từ Ma_Doc_Gia)
+      const reader = b.Ma_Doc_Gia;
+      let readerName = 'Độc giả';
+      if (reader && typeof reader === 'object') {
+        readerName = `${reader.Ho_Lot || ''} ${reader.Ten || ''}`.trim() || 'Độc giả';
+      }
+      
+      // Lấy thông tin sách (populate từ Ma_Sach)
+      const book = b.Ma_Sach;
+      let bookTitle = 'Sách';
+      if (book && typeof book === 'object') {
+        bookTitle = book.Ten_Sach || 'Sách';
+      }
+      
+      return {
+        id: b._id,
+        type: isReturned ? 'return' : (isOverdue ? 'overdue' : 'borrow'),
+        readerName,
+        bookTitle,
+        date: isReturned ? b.Ngay_Tra : b.Ngay_Muon,
+        status: b.trang_thai
+      };
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 5); // Lấy 5 hoạt động gần nhất
+    
+    recentActivities.value = activities;
+  } catch (err) {
+    console.error('Error loading stats:', err);
+    error('Lỗi khi tải dữ liệu thống kê');
+  } finally {
+    isLoadingStats.value = false;
+  }
+};
 
 const setActiveView = (view) => {
   navStore.saveActiveView(view);
@@ -666,10 +681,15 @@ const getCurrentDate = () => {
   return new Date().toLocaleDateString("vi-VN", options);
 };
 
+// Format ngày theo múi giờ Việt Nam (chỉ hiển thị ngày, không hiển thị giờ)
+const formatDateTime = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('vi-VN');
+};
+
 const handleLogout = () => {
-  if (confirm("Bạn chắc chắn muốn đăng xuất?")) {
-    emit('logout');
-  }
+  emit('logout');
 };
 
 const updateOverdueStatus = async () => {
@@ -683,6 +703,8 @@ const updateOverdueStatus = async () => {
     
     const data = await response.json();
     success(`${data.message}\nĐã cập nhật: ${data.updatedCount}/${data.totalOverdue}`);
+    // Reload stats after update
+    loadDashboardStats();
   } catch (err) {
     error(`Lỗi cập nhật: ${err.message}`);
   }
@@ -695,7 +717,7 @@ const updateOverdueStatus = async () => {
 
 .dashboard-wrapper {
   min-height: 100vh;
-  background: linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 100%);
+  background: white;
   margin: 0;
   padding: 0;
   width: 100%;
@@ -803,9 +825,9 @@ const updateOverdueStatus = async () => {
 }
 
 .btn-notification {
-  background: rgba(255, 255, 255, 0.2);
+  background: #f0f0f0;
   border: none;
-  color: white;
+  color: #333;
   width: 45px;
   height: 45px;
   border-radius: 12px;
@@ -818,13 +840,13 @@ const updateOverdueStatus = async () => {
 }
 
 .btn-notification:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: #e0e0e0;
   transform: translateY(-2px);
 }
 
 .btn-logout {
-  background: rgba(255, 255, 255, 0.9);
-  color: #667eea;
+  background: #667eea;
+  color: white;
   border: none;
   padding: 0.75rem 1.5rem;
   border-radius: 12px;
@@ -838,16 +860,16 @@ const updateOverdueStatus = async () => {
 }
 
 .btn-logout:hover {
-  background: white;
+  background: #5568d3;
   transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
 }
 
 /* Main Navigation */
 .main-nav {
-  background: rgba(26, 26, 46, 0.95);
+  background: #f8f9fa;
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid #2a2a3e;
+  border-bottom: 1px solid #e0e0e0;
   padding: 0;
 }
 
@@ -866,7 +888,7 @@ const updateOverdueStatus = async () => {
 .nav-item {
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.7);
+  color: #666;
   padding: 1rem 1.5rem;
   display: flex;
   align-items: center;
@@ -880,8 +902,8 @@ const updateOverdueStatus = async () => {
 }
 
 .nav-item:hover {
-  color: white;
-  background: rgba(255, 255, 255, 0.1);
+  color: #333;
+  background: rgba(102, 126, 234, 0.05);
 }
 
 .nav-item.active {
@@ -898,31 +920,33 @@ const updateOverdueStatus = async () => {
 .content-area {
   flex: 1;
   overflow-y: auto;
+  background: white;
 }
 
 .view-content {
   padding: 2rem;
+  background: white;
 }
 
 .welcome-section {
   text-align: center;
   margin-bottom: 2rem;
   padding: 2rem;
-  background: rgba(255, 255, 255, 0.05);
+  background: #f5f5f5;
   border-radius: 16px;
-  backdrop-filter: blur(10px);
+  border: 1px solid #e0e0e0;
 }
 
 .welcome-title {
   font-size: 2rem;
   font-weight: 700;
-  color: white;
+  color: #333;
   margin-bottom: 0.5rem;
 }
 
 .welcome-date {
   font-size: 1rem;
-  color: rgba(255, 255, 255, 0.7);
+  color: #666;
 }
 
 /* Action Buttons Section */
@@ -971,16 +995,16 @@ const updateOverdueStatus = async () => {
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f0f1e;
+  background: #f0f0f0;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #6366f1;
+  background: #667eea;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #8b5cf6;
+  background: #5568d3;
 }
 
 .card {

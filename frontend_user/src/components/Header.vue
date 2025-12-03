@@ -21,6 +21,8 @@
 </template>
 
 <script>
+import { success } from '../utils/toast';
+
 export default {
   name: 'Header',
   props: {
@@ -50,6 +52,7 @@ export default {
       this.$emit('back');
     },
     handleLogout() {
+      success('Đã đăng xuất thành công!');
       this.$emit('logout');
     },
   },

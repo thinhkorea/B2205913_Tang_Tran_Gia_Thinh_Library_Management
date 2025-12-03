@@ -2,15 +2,16 @@ import Borrow from "../models/borrow.model.js";
 import Book from "../models/book.model.js";
 import Fine from "../models/fine.model.js";
 import mongoose from "mongoose";
+import { emitEvent } from "../config/socket.js";
 
 // Lấy danh sách mượn sách
 export const getAllBorrows = async (req, res) => {
   try {
     const { Ma_Doc_Gia } = req.query;
-    
+
     // Nếu có Ma_Doc_Gia parameter, lọc theo độc giả
     const filter = Ma_Doc_Gia ? { Ma_Doc_Gia } : {};
-    
+
     const borrows = await Borrow.find(filter)
       .populate("Ma_Doc_Gia")
       .populate({
@@ -28,7 +29,8 @@ export const getAllBorrows = async (req, res) => {
 // Thêm bản ghi mượn sách
 export const createBorrow = async (req, res) => {
   try {
-    const { Ma_Doc_Gia, Ma_Sach, Ngay_Muon, Ngay_Hen_Tra, trang_thai } = req.body;
+    const { Ma_Doc_Gia, Ma_Sach, Ngay_Muon, Ngay_Hen_Tra, trang_thai } =
+      req.body;
 
     // Validate required fields
     if (!Ma_Doc_Gia || !Ma_Sach) {
@@ -49,7 +51,8 @@ export const createBorrow = async (req, res) => {
 
     if (unreturned >= 3) {
       return res.status(400).json({
-        message: "Bạn đã mượn 3 cuốn sách. Vui lòng trả sách trước khi mượn thêm.",
+        message:
+          "Bạn đã mượn 3 cuốn sách. Vui lòng trả sách trước khi mượn thêm.",
       });
     }
 
@@ -62,7 +65,8 @@ export const createBorrow = async (req, res) => {
 
     if (alreadyBorrowed) {
       return res.status(400).json({
-        message: "Bạn đã mượn cuốn sách này. Vui lòng trả sách trước khi mượn lại.",
+        message:
+          "Bạn đã mượn cuốn sách này. Vui lòng trả sách trước khi mượn lại.",
       });
     }
 
@@ -84,14 +88,14 @@ export const createBorrow = async (req, res) => {
 
     console.log("Creating borrow with data:", borrowData);
     const newBorrow = await Borrow.create(borrowData);
-    
+
     // Trừ So_Quyen của sách
     await Book.findByIdAndUpdate(
       sachId,
       { $inc: { So_Quyen: -1 } },
       { new: true }
     );
-    
+
     await newBorrow.populate("Ma_Doc_Gia");
     await newBorrow.populate({
       path: "Ma_Sach",
@@ -99,6 +103,10 @@ export const createBorrow = async (req, res) => {
         path: "Tac_Gia",
       },
     });
+
+    // Emit real-time update
+    emitEvent("borrow:created", { borrowId: newBorrow._id });
+
     res.status(201).json(newBorrow);
   } catch (error) {
     console.error("Create Borrow Error:", error);
@@ -117,7 +125,7 @@ export const updateBorrow = async (req, res) => {
 
     // Get original borrow record
     const originalBorrow = await Borrow.findById(borrowId);
-    
+
     if (!originalBorrow) {
       return res.status(404).json({
         message: "Bản ghi mượn sách không tồn tại",
@@ -135,23 +143,22 @@ export const updateBorrow = async (req, res) => {
 
     // Tính tiền phạt nếu quá hạn
     if (trang_thai === "Đã trả" || (Ngay_Tra_Thuc_Te && !trang_thai)) {
-      const returnDate = Ngay_Tra_Thuc_Te ? new Date(Ngay_Tra_Thuc_Te) : new Date();
+      const returnDate = Ngay_Tra_Thuc_Te
+        ? new Date(Ngay_Tra_Thuc_Te)
+        : new Date();
       const dueDate = new Date(originalBorrow.Ngay_Hen_Tra);
-      
-      // Nếu trả muộn, tính tiền phạt (Giá sách × Số ngày trễ)
-      if (returnDate > dueDate) {
-        const daysLate = Math.ceil((returnDate - dueDate) / (1000 * 60 * 60 * 24));
-        
-        // Lấy giá sách
-        const book = await Book.findById(originalBorrow.Ma_Sach);
-        const bookPrice = book?.Don_Gia || 0;
-        
-        // Tiền phạt = Giá sách × Số ngày trễ
-        const fineAmount = daysLate * bookPrice;
-        
-        updateData.Tien_Phat = fineAmount;
 
-        // Lưu phí phạt vào collection Tien_Phat
+      // Nếu trả muộn, tạo tiền phạt trong collection Tien_Phat
+      if (returnDate > dueDate) {
+        const daysLate = Math.ceil(
+          (returnDate - dueDate) / (1000 * 60 * 60 * 24)
+        );
+
+        // Tiền phạt = 10,000 VND per day
+        const finePerDay = 10000;
+        const fineAmount = daysLate * finePerDay;
+
+        // Lưu vào collection Tien_Phat
         await Fine.create({
           Ma_Doc_Gia: originalBorrow.Ma_Doc_Gia,
           Ma_Sach: originalBorrow.Ma_Sach,
@@ -162,10 +169,8 @@ export const updateBorrow = async (req, res) => {
           Ngay_Tra_Thuc_Te: returnDate,
           So_Ngay_Tre: daysLate,
           Trang_Thai_Thanh_Toan: "Chưa thanh toán",
-          Ghi_Chu: `Trả muộn ${daysLate} ngày. Giá sách: ${bookPrice} VND/ngày`,
+          Ghi_Chu: `Trả muộn ${daysLate} ngày. Phạt: 10,000 VND/ngày`,
         });
-      } else {
-        updateData.Tien_Phat = 0; // Không phạt nếu trả đúng hạn
       }
     }
 
@@ -187,15 +192,21 @@ export const updateBorrow = async (req, res) => {
         { $inc: { So_Quyen: 1 } },
         { new: true }
       );
+
+      // Emit books updated event for real-time sync
+      emitEvent("books:updated", { bookId: originalBorrow.Ma_Sach });
     }
+    // Emit real-time update
+    emitEvent("borrow:updated", { borrowId, trang_thai });
 
     res.status(200).json(updated);
   } catch (error) {
     console.error("Update Borrow Error:", error.message);
     console.error("Error Stack:", error.stack);
-    res
-      .status(400)
-      .json({ message: "Lỗi khi cập nhật bản ghi mượn sách", error: error.message });
+    res.status(400).json({
+      message: "Lỗi khi cập nhật bản ghi mượn sách",
+      error: error.message,
+    });
   }
 };
 
@@ -228,14 +239,14 @@ export const requestReturn = async (req, res) => {
       }
     );
 
-    console.log(`✅ ${updates.modifiedCount} return requests created`);
+    console.log(`${updates.modifiedCount} return requests created`);
 
     res.status(200).json({
       message: `Đã gửi yêu cầu trả ${updates.modifiedCount} cuốn sách. Nhân viên thư viện sẽ liên hệ với bạn sớm!`,
       modifiedCount: updates.modifiedCount,
     });
   } catch (error) {
-    console.error("❌ Error in requestReturn:", error);
+    console.error("Error in requestReturn:", error);
     res.status(500).json({
       message: "Lỗi khi gửi yêu cầu trả sách",
       error: error.message,
@@ -243,42 +254,64 @@ export const requestReturn = async (req, res) => {
   }
 };
 
-// Auto-update status for overdue books
+// Auto-update status for overdue books (both directions)
 export const autoUpdateOverdueStatus = async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Tìm tất cả sách đang mượn nhưng quá hạn
+    let overdueCount = 0;
+    let backToNormalCount = 0;
+
+    // 1. Tìm sách "Đang mượn" nhưng quá hạn → chuyển thành "Quá hạn"
     const overdueBooks = await Borrow.find({
       trang_thai: "Đang mượn",
       Ngay_Hen_Tra: { $lt: today },
     });
 
-    console.log(`🔄 Found ${overdueBooks.length} overdue books`);
-
-    let updatedCount = 0;
-
     for (const borrow of overdueBooks) {
-      // Update status to "Quá hạn"
       await Borrow.findByIdAndUpdate(
         borrow._id,
         { trang_thai: "Quá hạn" },
         { new: true }
       );
-      updatedCount++;
-      console.log(`✅ Updated borrow ${borrow._id} to "Quá hạn"`);
+      overdueCount++;
+      console.log(`Updated borrow ${borrow._id} to "Quá hạn"`);
+    }
+
+    // 2. Tìm sách "Quá hạn" nhưng ngày hẹn trả chưa đến → chuyển về "Đang mượn"
+    const backToNormalBooks = await Borrow.find({
+      trang_thai: "Quá hạn",
+      Ngay_Hen_Tra: { $gte: today },
+    });
+
+    for (const borrow of backToNormalBooks) {
+      await Borrow.findByIdAndUpdate(
+        borrow._id,
+        { trang_thai: "Đang mượn" },
+        { new: true }
+      );
+      backToNormalCount++;
+      console.log(`Updated borrow ${borrow._id} back to "Đang mượn"`);
+    }
+
+    const totalUpdated = overdueCount + backToNormalCount;
+
+    // Emit real-time update if any books were updated
+    if (totalUpdated > 0) {
+      emitEvent("borrow:updated", { overdueCount, backToNormalCount, type: "status_sync" });
     }
 
     res.status(200).json({
-      message: `Đã cập nhật ${updatedCount} phiếu mượn thành "Quá hạn"`,
-      updatedCount,
-      totalOverdue: overdueBooks.length,
+      message: `Đã cập nhật ${totalUpdated} phiếu mượn (${overdueCount} quá hạn, ${backToNormalCount} còn hạn)`,
+      overdueCount,
+      backToNormalCount,
+      totalUpdated,
     });
   } catch (error) {
-    console.error("❌ Error in autoUpdateOverdueStatus:", error);
+    console.error("Error in autoUpdateOverdueStatus:", error);
     res.status(500).json({
-      message: "Lỗi khi cập nhật trạng thái quá hạn",
+      message: "Lỗi khi cập nhật trạng thái",
       error: error.message,
     });
   }
@@ -384,4 +417,3 @@ export const getPendingBorrows = async (req, res) => {
     });
   }
 };
-

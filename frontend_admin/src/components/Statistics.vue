@@ -1,7 +1,7 @@
 <template>
   <div class="statistics-container">
     <div class="page-header">
-      <h2><i class="fas fa-chart-bar"></i> Thống Kê & Báo Cáo</h2>
+      <h2>Thống Kê & Báo Cáo</h2>
     </div>
 
     <!-- Stats Cards -->
@@ -11,8 +11,9 @@
           <i class="fas fa-book"></i>
         </div>
         <div class="stat-info">
-          <p class="stat-label">Tổng Sách</p>
+          <p class="stat-label">Tổng Đầu Sách</p>
           <h3 class="stat-value">{{ totalBooks }}</h3>
+          <p class="stat-sub">{{ totalCopies }} quyển</p>
         </div>
       </div>
 
@@ -92,6 +93,7 @@ export default {
   data() {
     return {
       totalBooks: 0,
+      totalCopies: 0, // Tổng số quyển sách (So_Quyen)
       totalReaders: 0,
       borrowingCount: 0,
       overdueCount: 0,
@@ -104,34 +106,65 @@ export default {
       books: [],
       readers: [],
       authors: [],
+      pollInterval: null,
     };
   },
   async mounted() {
     await this.loadStatistics();
     this.initCharts();
+    
+    // Polling every 5 seconds for real-time updates
+    this.pollInterval = setInterval(async () => {
+      await this.loadStatistics();
+      this.updateCharts();
+    }, 5000);
+  },
+  beforeUnmount() {
+    // Cleanup charts
+    if (this.borrowStatusChart) this.borrowStatusChart.destroy();
+    if (this.topBooksChart) this.topBooksChart.destroy();
+    if (this.trendChart) this.trendChart.destroy();
+    if (this.topReadersChart) this.topReadersChart.destroy();
+    if (this.authorsChart) this.authorsChart.destroy();
+    
+    // Clear polling interval
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
   },
   methods: {
+    updateCharts() {
+      // Update all charts with new data
+      this.createBorrowStatusChart();
+      this.createTopBooksChart();
+      this.createTrendChart();
+      this.createTopReadersChart();
+      this.createAuthorsChart();
+    },
     async loadStatistics() {
       try {
         // Load all data
         const [borrowsRes, booksRes, readersRes, authorsRes] = await Promise.all([
           axios.get('http://localhost:5000/api/borrows'),
-          axios.get('http://localhost:5000/api/books'),
+          axios.get('http://localhost:5000/api/books?limit=1000'),
           axios.get('http://localhost:5000/api/readers'),
           axios.get('http://localhost:5000/api/authors'),
         ]);
 
         this.borrows = Array.isArray(borrowsRes.data) ? borrowsRes.data : [];
-        this.books = Array.isArray(booksRes.data) ? booksRes.data : [];
+        // Books API returns { data: [...], pagination: {...} }
+        this.books = booksRes.data?.data || (Array.isArray(booksRes.data) ? booksRes.data : []);
         this.readers = Array.isArray(readersRes.data) ? readersRes.data : [];
         this.authors = Array.isArray(authorsRes.data) ? authorsRes.data : [];
 
         console.log('Books:', this.books.slice(0, 2));
         console.log('Authors:', this.authors.slice(0, 2));
-        console.log('Sample book Ma_Tac_Gia:', this.books[0]?.Ma_Tac_Gia);
+        console.log('Sample book Tac_Gia:', this.books[0]?.Tac_Gia);
 
         // Calculate stats
         this.totalBooks = this.books.length;
+        this.totalCopies = this.books.reduce((sum, book) => sum + (book.So_Quyen || 0), 0);
         this.totalReaders = this.readers.length;
         this.borrowingCount = this.borrows.filter(b => b?.trang_thai === 'Đang mượn').length;
         this.overdueCount = this.borrows.filter(b => b?.trang_thai === 'Quá hạn').length;
@@ -479,15 +512,15 @@ export default {
             a._id === authorId || a.Ma_Tac_Gia === authorId
           );
           if (!author) return `ID: ${String(authorId).substring(0, 8)}`;
-          const fullName = `${author.Ho_Lot} ${author.Ten}`.trim();
-          return fullName.length > 18 ? fullName.substring(0, 15) + '...' : fullName;
+          const authorName = author.Ten_Tac_Gia || author.Ten || '';
+          return authorName.length > 18 ? authorName.substring(0, 15) + '...' : authorName;
         });
         
         const tooltipLabels = topAuthors.map(([authorId]) => {
           const author = this.authors.find(a => 
             a._id === authorId || a.Ma_Tac_Gia === authorId
           );
-          return author ? `${author.Ho_Lot} ${author.Ten}` : `ID: ${authorId}`;
+          return author ? (author.Ten_Tac_Gia || author.Ten || `ID: ${authorId}`) : `ID: ${authorId}`;
         });
 
         const data = topAuthors.map(([, count]) => count);
@@ -631,6 +664,12 @@ export default {
   font-weight: bold;
   color: #1a1a1a;
   margin: 0;
+}
+
+.stat-sub {
+  font-size: 0.85rem;
+  color: #10b981;
+  margin-top: 0.25rem;
 }
 
 /* Charts Section */

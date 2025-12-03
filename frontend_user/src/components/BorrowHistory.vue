@@ -214,7 +214,7 @@
                 <span class="fine-label">Tiền Phạt Quá Hạn:</span>
                 <span class="fine-amount">{{ formatPrice(calculateFine(selectedBorrow?.Ngay_Hen_Tra, returnForm.returnDate, selectedBorrow?.Ma_Sach?.Don_Gia)) }}</span>
               </div>
-              <small class="fine-detail">{{ getDaysOverdue(selectedBorrow?.Ngay_Hen_Tra, returnForm.returnDate) }} ngày × {{ formatPrice(selectedBorrow?.Ma_Sach?.Don_Gia) }}/ngày</small>
+              <small class="fine-detail">{{ getDaysOverdue(selectedBorrow?.Ngay_Hen_Tra, returnForm.returnDate) }} ngày × 10,000 VND/ngày</small>
             </div>
             
           </div>
@@ -244,6 +244,7 @@ import { useBorrowStore } from '../stores/borrowStore';
 import { useBookStore } from '../stores/bookStore';
 import { useNavigationStore } from '../stores/navigationStore';
 import Header from './Header.vue';
+import socketService from '../utils/socket.js';
 
 export default {
   name: 'BorrowHistory',
@@ -287,9 +288,37 @@ export default {
         this.filterStatus = state.filterStatus || null;
         this.currentPage = state.currentPage || 1;
       }
+
+      // Socket connection for real-time updates (non-blocking)
+      try {
+        socketService.connect();
+        
+        // Listen for borrow updates (when admin processes return/approve)
+        socketService.on("borrow:updated", () => {
+          console.log("Real-time: borrow updated");
+          this.borrowStore.loadMyBorrows(this.currentUser._id);
+          this.borrowStore.calculateOverdueCount();
+        });
+        
+        // Listen for fine creation
+        socketService.on("fine:created", () => {
+          console.log("Real-time: fine created");
+          this.borrowStore.calculateOverdueCount();
+        });
+      } catch (socketError) {
+        console.warn("Socket connection failed:", socketError);
+      }
     }
   },
   beforeUnmount() {
+    // Cleanup socket listeners
+    try {
+      socketService.off("borrow:updated");
+      socketService.off("fine:created");
+    } catch (e) {
+      console.warn("Socket cleanup error:", e);
+    }
+    
     // Save state before leaving component
     this.navigationStore.saveBorrowHistoryState({
       filterStatus: this.filterStatus,
@@ -469,7 +498,7 @@ export default {
       return Math.ceil(diff / (1000 * 60 * 60 * 24));
     },
     calculateFine(deadline, returnDate, bookPrice) {
-      if (!deadline || !returnDate || !bookPrice) return 0;
+      if (!deadline || !returnDate) return 0;
       
       const deadlineDate = new Date(deadline);
       deadlineDate.setHours(0, 0, 0, 0);
@@ -480,9 +509,10 @@ export default {
         return 0; // Không phạt nếu trả đúng hạn
       }
       
-      // Tiền phạt = Giá sách × Số ngày trễ
+      // Tiền phạt = 10,000 VND × Số ngày trễ (THAY ĐỔI: từ bookPrice sang 10,000)
       const daysLate = Math.ceil((returnDateObj - deadlineDate) / (1000 * 60 * 60 * 24));
-      return daysLate * bookPrice;
+      const finePerDay = 10000; // 10,000 VND/ngày
+      return daysLate * finePerDay;
     },
     formatPrice(price) {
       return new Intl.NumberFormat('vi-VN', {

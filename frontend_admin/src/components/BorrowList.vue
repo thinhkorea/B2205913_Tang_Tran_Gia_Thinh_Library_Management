@@ -1,7 +1,7 @@
 <template>
   <div class="borrow-management">
     <div class="page-header">
-      <h2><i class="fas fa-book-open"></i> Quản Lý Mượn Trả Sách</h2>
+      <h2>Quản Lý Mượn Trả Sách</h2>
     </div>
 
     <!-- Filter Section -->
@@ -146,7 +146,7 @@
 
           <div v-else class="view-row warning" style="padding: 2rem; text-align: center;">
             <div class="view-group">
-              <label style="color: #dc2626; font-weight: 600; font-size: 1.1rem;">⚠️ Tiền Phạt Quá Hạn</label>
+              <label style="color: #dc2626; font-weight: 600; font-size: 1.1rem;">Tiền Phạt Quá Hạn</label>
               <p style="color: #dc2626; font-size: 1.8rem; font-weight: 700; margin: 1rem 0;">{{ formatPrice(returnForm.calculatedFine) }}</p>
               <p style="font-size: 0.95rem; color: #92400e;">Trễ {{ returnForm.daysLate }} ngày</p>
             </div>
@@ -205,6 +205,7 @@
 <script>
 import axios from 'axios';
 import { success, error, info } from '../utils/toast';
+import socketService from '../utils/socket';
 
 export default {
   name: 'BorrowList',
@@ -232,7 +233,8 @@ export default {
         Ngay_Tra: '',
         calculatedFine: 0,
         daysLate: 0
-      }
+      },
+      pollInterval: null,
     };
   },
   computed: {
@@ -243,7 +245,61 @@ export default {
   async mounted() {
     await this.loadData();
     this.setDefaultReturnDate();
+    
+    // Connect socket and listen for real-time updates
+    try {
+      socketService.connect();
+      
+      socketService.on('borrow:created', async () => {
+        console.log('Real-time: borrow created');
+        await this.loadBorrows();
+      });
+      
+      socketService.on('borrow:updated', async () => {
+        console.log('Real-time: borrow updated');
+        await this.loadBorrows();
+        await this.loadBooks();
+      });
+      
+      socketService.on('fine:created', async () => {
+        console.log('Real-time: fine created');
+        await this.loadBorrows();
+      });
+      
+      socketService.on('books:updated', async () => {
+        console.log('Real-time: books updated');
+        await this.loadBooks();
+      });
+    } catch (e) {
+      console.warn('Socket connection failed:', e);
+    }
+    
+    // Polling backup every 5 seconds (for direct DB changes)
+    this.pollInterval = setInterval(async () => {
+      // Auto-sync status based on Ngay_Hen_Tra
+      await this.autoSyncStatus();
+      await this.loadBorrows();
+    }, 5000);
   },
+
+  beforeUnmount() {
+    // Cleanup socket listeners
+    try {
+      socketService.off('borrow:created');
+      socketService.off('borrow:updated');
+      socketService.off('fine:created');
+      socketService.off('books:updated');
+    } catch (e) {
+      console.warn('Socket cleanup error:', e);
+    }
+    
+    // Clear polling interval
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
+  },
+
   watch: {
     'returnForm.Ngay_Tra'() {
       this.calculateFine();
@@ -254,6 +310,16 @@ export default {
       await this.loadBorrows();
       await this.loadReaders();
       await this.loadBooks();
+    },
+    
+    async autoSyncStatus() {
+      try {
+        // Gọi API để tự động cập nhật trạng thái dựa trên Ngay_Hen_Tra
+        await axios.post('http://localhost:5000/api/borrows/auto-update-overdue');
+      } catch (err) {
+        // Silent fail - không cần thông báo lỗi cho polling
+        console.warn('Auto sync status failed:', err.message);
+      }
     },
     
     async loadBorrows() {
@@ -514,8 +580,8 @@ export default {
 
       if (returnDate > dueDate) {
         daysLate = Math.ceil((returnDate - dueDate) / (1000 * 60 * 60 * 24));
-        const bookPrice = this.editingBorrow.Ma_Sach?.Don_Gia || 0;
-        fine = daysLate * bookPrice;
+        const finePerDay = 10000; // 10,000 VND per day
+        fine = daysLate * finePerDay;
       }
 
       this.returnForm.daysLate = daysLate;
@@ -538,9 +604,55 @@ export default {
         );
 
         success('Trả sách thành công! ' + (this.returnForm.calculatedFine > 0 ? `Tiền phạt: ${this.formatPrice(this.returnForm.calculatedFine)}` : ''));
+        
+        // Tăng số lượng sách lên 1 sau khi trả
+        try {
+          const bookId = this.editingBorrow.Ma_Sach?._id || this.editingBorrow.Ma_Sach;
+          const book = this.books.find(b => b._id === bookId);
+          if (book) {
+            await axios.put(
+              `http://localhost:5000/api/books/${bookId}`,
+              { So_Luong: (book.So_Luong || 0) + 1 },
+              {
+                headers: {
+                  Authorization: `Bearer ${localStorage.getItem('token')}`
+                }
+              }
+            );
+            console.log(`Số lượng sách đã tăng lên ${book.So_Luong + 1}`);
+          }
+        } catch (bookErr) {
+          console.error('Warning: book quantity update failed:', bookErr);
+        }
+        
+        // Tạo fine record ngay lập tức nếu quá hạn
+        try {
+          console.log(`Creating fine for borrow ${this.editingBorrow._id}...`);
+          const fineResponse = await axios.post(
+            `http://localhost:5000/api/fines/create-for-borrow/${this.editingBorrow._id}`,
+            {},
+            {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem('token')}`
+              }
+            }
+          );
+          console.log('Fine creation response:', fineResponse.data);
+          
+          if (fineResponse.data.fineCreated) {
+            success(`Phiếu phạt đã tạo: ${this.formatPrice(fineResponse.data.fineAmount)} (quá hạn ${fineResponse.data.daysLate} ngày)`);
+          } else if (fineResponse.data.daysLate === 0) {
+            console.log('Sách không quá hạn, không phạt');
+          }
+        } catch (fineErr) {
+          console.error('Warning: fine creation failed:', fineErr);
+          // Không show error vì trả sách đã thành công, fine có thể tạo lần sau
+        }
+        
         this.showReturnForm = false;
         this.editingBorrow = null;
         await this.loadBorrows();
+        await this.loadBooks(); // Cập nhật số lượng sách ngay
       } catch (error) {
         error('Lỗi khi trả sách: ' + (error.response?.data?.message || error.message));
       }

@@ -59,11 +59,24 @@
               <span class="detail-label">Địa chỉ:</span>
               <span class="detail-value">{{ reader.Dia_Chi || '-' }}</span>
             </div>
+            <div class="detail-item">
+              <span class="detail-label">Trạng thái:</span>
+              <span class="detail-value" :class="{ 'status-active': reader.Tinh_Trang === '1', 'status-locked': reader.Tinh_Trang === '0' }">
+                {{ reader.Tinh_Trang === '1' ? '✓ Hoạt động' : '✗ Khóa' }}
+              </span>
+            </div>
           </div>
 
           <div class="card-actions">
             <button class="btn-edit-card" @click="editReader(reader, $event)" title="Chỉnh sửa">
               <i class="fas fa-edit"></i>
+            </button>
+            <button 
+              :class="reader.Tinh_Trang === '1' ? 'btn-lock-card' : 'btn-unlock-card'"
+              @click="toggleLockReader(reader._id, reader.Tinh_Trang, $event)" 
+              :title="reader.Tinh_Trang === '1' ? 'Khóa tài khoản' : 'Mở khóa tài khoản'"
+            >
+              <i :class="reader.Tinh_Trang === '1' ? 'fas fa-lock-open' : 'fas fa-lock'"></i>
             </button>
             <button class="btn-delete-card" @click="deleteReader(reader._id, $event)" title="Xóa">
               <i class="fas fa-trash"></i>
@@ -139,6 +152,7 @@
                   <option value="">-- Chọn giới tính --</option>
                   <option value="Nam">Nam</option>
                   <option value="Nữ">Nữ</option>
+                  <option value="Khác">Khác</option>
                 </select>
               </div>
             </div>
@@ -346,11 +360,21 @@ export default {
       this.error = '';
       this.success = '';
       
+      // Format date properly for input type="date"
+      let ngaySinh = '';
+      if (reader.Ngay_Sinh) {
+        const date = new Date(reader.Ngay_Sinh);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        ngaySinh = `${year}-${month}-${day}`;
+      }
+      
       this.formData = {
         Ma_Doc_Gia: reader.Ma_Doc_Gia || '',
         Ho_Lot: reader.Ho_Lot || '',
         Ten: reader.Ten || '',
-        Ngay_Sinh: reader.Ngay_Sinh ? reader.Ngay_Sinh.split('T')[0] : '',
+        Ngay_Sinh: ngaySinh,
         Phai: reader.Phai || '',
         Dia_Chi: reader.Dia_Chi || '',
         Dien_Thoai: reader.Dien_Thoai || '',
@@ -362,6 +386,45 @@ export default {
       const reader = this.readers.find(r => r._id === id);
       this.readerToDelete = reader;
       this.showDeleteModal = true;
+    },
+
+    async toggleLockReader(id, currentStatus, event) {
+      event.stopPropagation();
+      try {
+        this.isLoading = true;
+        const newStatus = currentStatus === '1' ? '0' : '1';
+        const statusText = newStatus === '1' ? 'mở khóa' : 'khóa';
+        
+        const response = await axios.put(
+          `http://localhost:5000/api/readers/${id}`,
+          { Tinh_Trang: newStatus },
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('token')}`,
+            },
+          }
+        );
+        
+        // Update reader in list
+        const readerIndex = this.readers.findIndex(r => r._id === id);
+        if (readerIndex !== -1) {
+          this.readers[readerIndex].Tinh_Trang = newStatus;
+        }
+        
+        this.performSearch();
+        this.success = `Đã ${statusText} tài khoản thành công!`;
+        setTimeout(() => {
+          this.success = '';
+        }, 2000);
+      } catch (error) {
+        console.error('Lỗi khóa/mở khóa:', error);
+        this.error = 'Không thể cập nhật trạng thái tài khoản';
+        setTimeout(() => {
+          this.error = '';
+        }, 3000);
+      } finally {
+        this.isLoading = false;
+      }
     },
 
     cancelDelete() {
@@ -496,9 +559,11 @@ export default {
 
 <style scoped>
 .reader-container {
-  padding: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 40px 20px;
+  background: white;
   min-height: 100vh;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 /* Header Section */
@@ -511,9 +576,8 @@ export default {
 
 .header-section h2 {
   font-size: 32px;
-  color: white;
+  color: #333;
   margin: 0;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
   font-weight: 700;
 }
 
@@ -523,32 +587,30 @@ export default {
 }
 
 .btn-add, .btn-filter {
-  background: rgba(255,255,255,0.2);
-  color: white;
-  border: 2px solid rgba(255,255,255,0.3);
+  background: #f0f0f0;
+  color: #333;
+  border: 2px solid #e0e0e0;
   padding: 12px 20px;
   border-radius: 12px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
 }
 
 .btn-add:hover, .btn-filter:hover {
-  background: rgba(255,255,255,0.3);
-  border-color: rgba(255,255,255,0.5);
+  background: #e0e0e0;
+  border-color: #999;
   transform: translateY(-2px);
 }
 
 /* Filter Section */
 .filter-section {
-  background: rgba(255,255,255,0.15);
-  backdrop-filter: blur(20px);
+  background: #f9fafb;
   border-radius: 16px;
   padding: 20px;
   margin-bottom: 25px;
-  border: 1px solid rgba(255,255,255,0.2);
+  border: 1px solid #e0e0e0;
 }
 
 .filter-row {
@@ -584,18 +646,17 @@ export default {
 }
 
 .reader-card {
-  background: rgba(255,255,255,0.98);
-  backdrop-filter: blur(20px);
+  background: white;
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-  border: 1px solid rgba(255,255,255,0.2);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  border: 1px solid #e0e0e0;
   transition: all 0.3s ease;
 }
 
 .reader-card:hover {
   transform: translateY(-8px);
-  box-shadow: 0 12px 48px rgba(102,126,234,0.2);
+  box-shadow: 0 8px 24px rgba(102,126,234,0.15);
 }
 
 .card-content {
@@ -664,7 +725,7 @@ export default {
   justify-content: flex-end;
 }
 
-.btn-edit-card, .btn-delete-card {
+.btn-edit-card, .btn-delete-card, .btn-lock-card, .btn-unlock-card {
   width: 40px;
   height: 40px;
   border: none;
@@ -688,6 +749,28 @@ export default {
   transform: scale(1.1);
 }
 
+.btn-lock-card {
+  background: rgba(76, 175, 80, 0.1);
+  color: #4caf50;
+}
+
+.btn-lock-card:hover {
+  background: rgba(76, 175, 80, 1);
+  color: white;
+  transform: scale(1.1);
+}
+
+.btn-unlock-card {
+  background: rgba(255, 152, 0, 0.1);
+  color: #ff9800;
+}
+
+.btn-unlock-card:hover {
+  background: rgba(255, 152, 0, 1);
+  color: white;
+  transform: scale(1.1);
+}
+
 .btn-delete-card {
   background: rgba(244, 67, 54, 0.1);
   color: #f44336;
@@ -697,6 +780,16 @@ export default {
   background: rgba(244, 67, 54, 1);
   color: white;
   transform: scale(1.1);
+}
+
+.status-active {
+  color: #4caf50;
+  font-weight: 600;
+}
+
+.status-locked {
+  color: #ff9800;
+  font-weight: 600;
 }
 
 .no-readers {
@@ -739,14 +832,14 @@ export default {
 
 /* Form Modal - floating centered */
 .form-modal {
-  background: rgba(255,255,255,0.98);
-  backdrop-filter: blur(20px);
+  background: white;
   border-radius: 20px;
   width: 500px;
   max-height: 85vh;
-  overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-  border: 1px solid rgba(255,255,255,0.3);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  border: 1px solid #e0e0e0;
   animation: modalSlideIn 0.4s ease-out;
 }
 
@@ -797,12 +890,18 @@ export default {
 
 .reader-form {
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .form-section {
   padding: 20px;
   border-bottom: 1px solid #f0f0f0;
   background: rgba(255, 255, 255, 0.5);
+  flex: 1;
+  overflow-y: auto;
 }
 
 .form-section:last-of-type {
@@ -874,13 +973,14 @@ export default {
 .form-actions {
   display: flex;
   gap: 12px;
-  margin-top: 0;
   justify-content: center;
   align-items: center;
   padding: 20px;
   border-top: 1px solid #f0f0f0;
   background: rgba(249, 249, 249, 0.7);
   border-radius: 0 0 20px 20px;
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 .btn-submit, .btn-cancel {

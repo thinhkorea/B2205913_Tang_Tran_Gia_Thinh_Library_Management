@@ -82,9 +82,9 @@ export const staffLogin = async (req, res) => {
       return res.status(401).json({ message: "Mật khẩu không đúng" });
     }
 
-    // Kiểm tra role
-    if (staff.Role !== "admin") {
-      return res.status(403).json({ message: "Không có quyền truy cập admin" });
+    // Cho phép cả admin và staff đăng nhập
+    if (staff.Role !== "admin" && staff.Role !== "staff") {
+      return res.status(403).json({ message: "Không có quyền truy cập hệ thống quản lý" });
     }
 
     // Trả về thông tin nhân viên (không trả password)

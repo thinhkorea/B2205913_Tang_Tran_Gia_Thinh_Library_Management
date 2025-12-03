@@ -20,17 +20,6 @@ const borrowSchema = new mongoose.Schema(
       enum: ["Chờ xác nhận", "Đang mượn", "Đã trả", "Quá hạn"],
       default: "Chờ xác nhận",
     },
-    Tien_Phat: { 
-      type: Number, 
-      default: 0 
-    }, // Tiền phạt quá hạn (tính theo ngày)
-    return_request: {
-      type: Boolean,
-      default: false
-    }, // Yêu cầu trả sách từ user
-    return_request_date: {
-      type: Date
-    }, // Ngày gửi yêu cầu trả sách
   },
   { collection: "Theo_Doi_Muon_Sach", timestamps: true, versionKey: false }
 );

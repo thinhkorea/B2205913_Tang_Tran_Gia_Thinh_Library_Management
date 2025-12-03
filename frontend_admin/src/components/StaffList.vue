@@ -1,7 +1,7 @@
 <template>
   <div class="staff-management">
     <div class="page-header">
-      <h2><i class="fas fa-users-cog"></i> Quản Lý Nhân Viên</h2>
+      <h2>Quản Lý Nhân Viên</h2>
       <button @click="showStaffForm = true" class="btn-primary">
         <i class="fas fa-user-plus"></i> Thêm nhân viên
       </button>
@@ -14,16 +14,14 @@
         <input 
           v-model="searchTerm"
           type="text" 
-          placeholder="Tìm kiếm theo mã NV, tên, chức vụ..."
+          placeholder="Tìm kiếm theo mã NV, tên, email..."
           @input="searchStaff"
         >
       </div>
       <select v-model="positionFilter" @change="filterStaff" class="filter-select">
-        <option value="">Tất cả chức vụ</option>
-        <option value="Thủ thư">Thủ thư</option>
-        <option value="Nhân viên">Nhân viên</option>
-        <option value="Quản lý">Quản lý</option>
-        <option value="Trợ lý">Trợ lý</option>
+        <option value="">Tất cả quyền hạn</option>
+        <option value="admin">Admin</option>
+        <option value="staff">Staff</option>
       </select>
     </div>
 
@@ -31,7 +29,7 @@
     <div class="staff-grid">
       <div 
         v-for="staff in filteredStaff" 
-        :key="staff.Ma_NV"
+        :key="staff.Ma_Nhan_Vien"
         class="staff-card"
       >
         <div class="card-header">
@@ -39,14 +37,14 @@
             <i class="fas fa-user"></i>
           </div>
           <div class="staff-info">
-            <h3>{{ staff.Ho_Lot }} {{ staff.Ten }}</h3>
-            <span class="position">{{ staff.Chuc_Vu }}</span>
+            <h3>{{ staff.Ho_Ten }}</h3>
+            <span class="position" :class="staff.Role === 'admin' ? 'role-admin-header' : 'role-staff-header'">{{ staff.Role === 'admin' ? 'Admin' : 'Staff' }}</span>
           </div>
           <div class="card-actions">
             <button @click="editStaff(staff)" class="btn-edit">
               <i class="fas fa-edit"></i>
             </button>
-            <button @click="deleteStaff(staff.Ma_NV)" class="btn-delete">
+            <button @click="deleteStaff(staff.Ma_Nhan_Vien)" class="btn-delete">
               <i class="fas fa-trash"></i>
             </button>
           </div>
@@ -55,7 +53,7 @@
         <div class="card-body">
           <div class="info-item">
             <i class="fas fa-id-badge"></i>
-            <span>Mã NV: {{ staff.Ma_NV }}</span>
+            <span>Mã NV: {{ staff.Ma_Nhan_Vien }}</span>
           </div>
           <div class="info-item">
             <i class="fas fa-envelope"></i>
@@ -63,15 +61,20 @@
           </div>
           <div class="info-item">
             <i class="fas fa-phone"></i>
-            <span>SĐT: {{ staff.Dien_Thoai || 'Chưa cập nhật' }}</span>
+            <span>SĐT: {{ staff.So_Dien_Thoai || 'Chưa cập nhật' }}</span>
           </div>
           <div class="info-item">
             <i class="fas fa-map-marker-alt"></i>
             <span>Địa chỉ: {{ staff.Dia_Chi || 'Chưa cập nhật' }}</span>
           </div>
           <div class="info-item">
-            <i class="fas fa-calendar-alt"></i>
-            <span>Ngày sinh: {{ formatDate(staff.Ngay_Sinh) }}</span>
+            <i class="fas fa-key"></i>
+            <span>
+              Quyền hạn: 
+              <span class="role-badge" :class="staff.Role === 'admin' ? 'role-admin' : 'role-staff'">
+                {{ staff.Role === 'admin' ? 'Admin' : 'Staff' }}
+              </span>
+            </span>
           </div>
         </div>
         
@@ -103,59 +106,37 @@
             <div class="form-group">
               <label>Mã nhân viên</label>
               <input 
-                v-model="staffForm.Ma_NV" 
+                v-model="staffForm.Ma_Nhan_Vien" 
                 type="text" 
                 :disabled="editingStaff"
                 required
               >
             </div>
             <div class="form-group">
-              <label>Chức vụ</label>
-              <select v-model="staffForm.Chuc_Vu" required>
-                <option value="">Chọn chức vụ</option>
-                <option value="Thủ thư">Thủ thư</option>
-                <option value="Nhân viên">Nhân viên</option>
-                <option value="Quản lý">Quản lý</option>
-                <option value="Trợ lý">Trợ lý</option>
-              </select>
+              <label>Họ tên</label>
+              <input v-model="staffForm.Ho_Ten" type="text" required>
             </div>
           </div>
-          
+
           <div class="form-row">
             <div class="form-group">
-              <label>Họ lót</label>
-              <input v-model="staffForm.Ho_Lot" type="text" required>
+              <label>Mật khẩu</label>
+              <input v-model="staffForm.Password" type="password" :required="!editingStaff">
             </div>
-            <div class="form-group">
-              <label>Tên</label>
-              <input v-model="staffForm.Ten" type="text" required>
-            </div>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-group">
-              <label>Ngày sinh</label>
-              <input v-model="staffForm.Ngay_Sinh" type="date" required>
-            </div>
-            <div class="form-group">
-              <label>Giới tính</label>
-              <select v-model="staffForm.Gioi_Tinh">
-                <option value="">Chọn giới tính</option>
-                <option value="Nam">Nam</option>
-                <option value="Nữ">Nữ</option>
-                <option value="Khác">Khác</option>
-              </select>
-            </div>
-          </div>
-          
-          <div class="form-row">
             <div class="form-group">
               <label>Email</label>
               <input v-model="staffForm.Email" type="email">
             </div>
+          </div>
+          
+          <div class="form-row">
             <div class="form-group">
               <label>Số điện thoại</label>
-              <input v-model="staffForm.Dien_Thoai" type="tel">
+              <input v-model="staffForm.So_Dien_Thoai" type="tel">
+            </div>
+            <div class="form-group">
+              <label>Ngày sinh</label>
+              <input v-model="staffForm.Ngay_Sinh" type="date">
             </div>
           </div>
           
@@ -164,12 +145,15 @@
               <label>Địa chỉ</label>
               <input v-model="staffForm.Dia_Chi" type="text">
             </div>
+          </div>
+
+          <div class="form-row">
             <div class="form-group">
-              <label>Trạng thái</label>
-              <select v-model="staffForm.Trang_Thai">
-                <option value="Hoạt động">Hoạt động</option>
-                <option value="Tạm nghỉ">Tạm nghỉ</option>
-                <option value="Đã nghỉ">Đã nghỉ</option>
+              <label>Quyền hạn</label>
+              <select v-model="staffForm.Role" required>
+                <option value="">Chọn quyền hạn</option>
+                <option value="staff">Staff</option>
+                <option value="admin">Admin</option>
               </select>
             </div>
           </div>
@@ -201,16 +185,14 @@ export default {
       showStaffForm: false,
       editingStaff: null,
       staffForm: {
-        Ma_NV: '',
-        Ho_Lot: '',
-        Ten: '',
-        Chuc_Vu: '',
-        Ngay_Sinh: '',
-        Gioi_Tinh: '',
-        Dia_Chi: '',
-        Dien_Thoai: '',
+        Ma_Nhan_Vien: '',
+        Ho_Ten: '',
+        Password: '',
         Email: '',
-        Trang_Thai: 'Hoạt động'
+        Dia_Chi: '',
+        So_Dien_Thoai: '',
+        Ngay_Sinh: '',
+        Role: 'staff'
       }
     };
   },
@@ -225,46 +207,8 @@ export default {
         this.filteredStaff = [...this.staff];
       } catch (error) {
         console.error('Lỗi tải danh sách nhân viên:', error);
-        // Mock data
-        this.staff = [
-          {
-            Ma_NV: 'NV001',
-            Ho_Lot: 'Nguyễn Văn',
-            Ten: 'An',
-            Chuc_Vu: 'Thủ thư',
-            Ngay_Sinh: '1990-05-15',
-            Gioi_Tinh: 'Nam',
-            Dia_Chi: '123 Đường ABC, Quận 1, TP.HCM',
-            Dien_Thoai: '0901234567',
-            Email: 'nguyenvanan@library.com',
-            Trang_Thai: 'Hoạt động'
-          },
-          {
-            Ma_NV: 'NV002',
-            Ho_Lot: 'Trần Thị',
-            Ten: 'Bình',
-            Chuc_Vu: 'Nhân viên',
-            Ngay_Sinh: '1992-08-20',
-            Gioi_Tinh: 'Nữ',
-            Dia_Chi: '456 Đường XYZ, Quận 2, TP.HCM',
-            Dien_Thoai: '0907654321',
-            Email: 'tranthibinh@library.com',
-            Trang_Thai: 'Hoạt động'
-          },
-          {
-            Ma_NV: 'NV003',
-            Ho_Lot: 'Lê Minh',
-            Ten: 'Cường',
-            Chuc_Vu: 'Quản lý',
-            Ngay_Sinh: '1988-12-10',
-            Gioi_Tinh: 'Nam',
-            Dia_Chi: '789 Đường DEF, Quận 3, TP.HCM',
-            Dien_Thoai: '0912345678',
-            Email: 'leminhcuong@library.com',
-            Trang_Thai: 'Hoạt động'
-          }
-        ];
-        this.filteredStaff = [...this.staff];
+        this.staff = [];
+        this.filteredStaff = [];
       }
     },
     
@@ -278,17 +222,15 @@ export default {
       if (this.searchTerm) {
         const term = this.searchTerm.toLowerCase();
         filtered = filtered.filter(staff => 
-          staff.Ma_NV.toLowerCase().includes(term) ||
-          staff.Ho_Lot.toLowerCase().includes(term) ||
-          staff.Ten.toLowerCase().includes(term) ||
-          staff.Chuc_Vu.toLowerCase().includes(term) ||
+          staff.Ma_Nhan_Vien.toLowerCase().includes(term) ||
+          (staff.Ho_Ten && staff.Ho_Ten.toLowerCase().includes(term)) ||
           (staff.Email && staff.Email.toLowerCase().includes(term)) ||
-          (staff.Dien_Thoai && staff.Dien_Thoai.includes(term))
+          (staff.So_Dien_Thoai && staff.So_Dien_Thoai.includes(term))
         );
       }
       
       if (this.positionFilter) {
-        filtered = filtered.filter(staff => staff.Chuc_Vu === this.positionFilter);
+        filtered = filtered.filter(staff => staff.Role === this.positionFilter);
       }
       
       this.filteredStaff = filtered;
@@ -319,7 +261,7 @@ export default {
       
       try {
         await axios.delete(`http://localhost:5000/api/staff/${maNV}`);
-        this.staff = this.staff.filter(s => s.Ma_NV !== maNV);
+        this.staff = this.staff.filter(s => s._id !== maNV);
         this.filterStaff();
         success('Xóa nhân viên thành công!');
       } catch (err) {
@@ -331,8 +273,8 @@ export default {
     async submitForm() {
       try {
         if (this.editingStaff) {
-          await axios.put(`http://localhost:5000/api/staff/${this.staffForm.Ma_NV}`, this.staffForm);
-          const index = this.staff.findIndex(s => s.Ma_NV === this.staffForm.Ma_NV);
+          await axios.put(`http://localhost:5000/api/staff/${this.editingStaff._id}`, this.staffForm);
+          const index = this.staff.findIndex(s => s._id === this.editingStaff._id);
           this.staff[index] = { ...this.staffForm };
         } else {
           await axios.post('http://localhost:5000/api/staff', this.staffForm);
@@ -352,16 +294,14 @@ export default {
       this.showStaffForm = false;
       this.editingStaff = null;
       this.staffForm = {
-        Ma_NV: '',
-        Ho_Lot: '',
-        Ten: '',
-        Chuc_Vu: '',
-        Ngay_Sinh: '',
-        Gioi_Tinh: '',
-        Dia_Chi: '',
-        Dien_Thoai: '',
+        Ma_Nhan_Vien: '',
+        Ho_Ten: '',
+        Password: '',
         Email: '',
-        Trang_Thai: 'Hoạt động'
+        Dia_Chi: '',
+        So_Dien_Thoai: '',
+        Ngay_Sinh: '',
+        Role: 'staff'
       };
     }
   }
@@ -371,9 +311,18 @@ export default {
 <style scoped>
 .staff-management {
   padding: 2rem;
-  background: linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 100%);
+  background: linear-gradient(135deg, #f8f9fc 0%, #f3f4f8 100%);
   min-height: 100vh;
-  color: white;
+  color: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+}
+
+.staff-management > *:not(.modal-overlay) {
+  max-width: 1400px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .page-header {
@@ -386,7 +335,7 @@ export default {
 .page-header h2 {
   font-size: 1.75rem;
   font-weight: 700;
-  color: white;
+  color: #1a1a1a;
   margin: 0;
 }
 
@@ -413,25 +362,29 @@ export default {
   left: 1rem;
   top: 50%;
   transform: translateY(-50%);
-  color: #a0a0b0;
+  color: #667eea;
 }
 
 .search-box input {
   width: 100%;
   padding: 0.875rem 1rem 0.875rem 3rem;
-  border: 1px solid #2a2a3e;
+  border: 1px solid #e0e0e0;
   border-radius: 12px;
-  background: rgba(26, 26, 46, 0.8);
-  color: white;
+  background: white;
+  color: #1a1a1a;
   font-size: 0.9rem;
+}
+
+.search-box input::placeholder {
+  color: #999999;
 }
 
 .filter-select {
   padding: 0.875rem 1rem;
-  border: 1px solid #2a2a3e;
+  border: 1px solid #e0e0e0;
   border-radius: 12px;
-  background: rgba(26, 26, 46, 0.8);
-  color: white;
+  background: white;
+  color: #1a1a1a;
   font-size: 0.9rem;
   min-width: 180px;
 }
@@ -444,12 +397,12 @@ export default {
 }
 
 .staff-card {
-  background: rgba(26, 26, 46, 0.8);
+  background: white;
   border-radius: 16px;
   padding: 1.5rem;
-  backdrop-filter: blur(10px);
-  border: 1px solid #2a2a3e;
+  border: 1px solid #e0e0e0;
   transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .staff-card:hover {
@@ -478,7 +431,7 @@ export default {
 
 .avatar i {
   font-size: 1.5rem;
-  color: white;
+  color: #667eea;
 }
 
 .staff-info {
@@ -488,7 +441,7 @@ export default {
 .staff-info h3 {
   font-size: 1.1rem;
   font-weight: 700;
-  color: white;
+  color: #1a1a1a;
   margin: 0 0 0.25rem 0;
 }
 
@@ -549,17 +502,17 @@ export default {
 .info-item i {
   width: 20px;
   margin-right: 0.75rem;
-  color: #06b6d4;
+  color: #667eea;
 }
 
 .info-item span {
-  color: #e5e7eb;
+  color: #1a1a1a;
   line-height: 1.4;
 }
 
 .card-footer {
   padding-top: 1rem;
-  border-top: 1px solid #2a2a3e;
+  border-top: 1px solid #e0e0e0;
   display: flex;
   justify-content: flex-end;
 }
@@ -589,6 +542,45 @@ export default {
   color: #9ca3af;
 }
 
+.role-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
+.role-admin {
+  background: rgba(239, 68, 68, 0.2);
+  color: #dc2626;
+}
+
+.role-staff {
+  background: rgba(59, 130, 246, 0.2);
+  color: #2563eb;
+}
+
+.role-admin-header {
+  background: rgba(239, 68, 68, 0.2);
+  color: #dc2626;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.role-staff-header {
+  background: rgba(59, 130, 246, 0.2);
+  color: #2563eb;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
 .status-badge i {
   font-size: 0.5rem;
 }
@@ -611,9 +603,9 @@ export default {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #06b6d4, #0891b2);
-  color: white;
-  border: none;
+  background: #f0f0f0;
+  color: #1a1a1a;
+  border: 2px solid #e0e0e0;
   padding: 0.875rem 1.5rem;
   border-radius: 12px;
   font-weight: 600;
@@ -624,9 +616,15 @@ export default {
   gap: 0.5rem;
 }
 
+.btn-primary i {
+  color: #667eea;
+  font-size: 1.1em;
+}
+
 .btn-primary:hover {
+  background: #e0e0e0;
+  border-color: #999;
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(6, 182, 212, 0.4);
 }
 
 /* Modal Styles */
@@ -636,21 +634,24 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  margin: 0;
+  padding: 0;
 }
 
 .modal-content {
-  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  background: white;
   border-radius: 16px;
   width: 90%;
   max-width: 700px;
   max-height: 90vh;
   overflow-y: auto;
-  border: 1px solid #2a2a3e;
+  border: 1px solid #f0f0f0;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
 }
 
 .modal-header {
@@ -658,20 +659,20 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem;
-  border-bottom: 1px solid #2a2a3e;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .modal-header h3 {
   font-size: 1.25rem;
   font-weight: 700;
-  color: white;
+  color: #1a1a1a;
   margin: 0;
 }
 
 .btn-close {
   background: none;
   border: none;
-  color: #a0a0b0;
+  color: #999;
   font-size: 1.5rem;
   cursor: pointer;
   padding: 0.25rem;
@@ -679,7 +680,7 @@ export default {
 }
 
 .btn-close:hover {
-  color: white;
+  color: #333;
 }
 
 .modal-form {
@@ -699,27 +700,27 @@ export default {
 .form-group label {
   display: block;
   margin-bottom: 0.5rem;
-  color: #a0a0b0;
+  color: #1a1a1a;
   font-size: 0.9rem;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .form-group input,
 .form-group select {
   width: 100%;
   padding: 0.875rem;
-  border: 1px solid #2a2a3e;
+  border: 1px solid #e0e0e0;
   border-radius: 8px;
-  background: rgba(26, 26, 46, 0.6);
-  color: white;
+  background: white;
+  color: #1a1a1a;
   font-size: 0.9rem;
 }
 
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #06b6d4;
-  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2);
+  border-color: #667eea;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
 }
 
 .form-actions {

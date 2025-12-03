@@ -9,6 +9,7 @@
 import Login from "./components/Login.vue";
 import Dashboard from "./components/Dashboard.vue";
 import { useAdminNavigationStore } from "./stores/adminNavigationStore";
+import { success } from "./utils/toast";
 
 export default {
   components: {
@@ -43,15 +44,14 @@ export default {
       navStore.loadState();
     },
     handleLogout() {
-      if (confirm("Bạn chắc chắn muốn đăng xuất?")) {
-        localStorage.removeItem("staff");
-        this.isLoggedIn = false;
-        this.currentUser = null;
-        
-        // Clear navigation state on logout
-        const navStore = useAdminNavigationStore();
-        navStore.clearAllState();
-      }
+      success('Đã đăng xuất thành công!');
+      localStorage.removeItem("staff");
+      this.isLoggedIn = false;
+      this.currentUser = null;
+      
+      // Clear navigation state on logout
+      const navStore = useAdminNavigationStore();
+      navStore.clearAllState();
     },
   },
 };

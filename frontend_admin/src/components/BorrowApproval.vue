@@ -186,9 +186,11 @@ export default {
 
 <style scoped>
 .borrow-approval-container {
-  padding: 20px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 2rem;
+  background: white;
   min-height: 100vh;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 .header {
@@ -210,18 +212,25 @@ export default {
 
 .btn-refresh {
   padding: 10px 20px;
-  background: #007bff;
-  color: white;
-  border: none;
-  border-radius: 5px;
+  background: #f0f0f0;
+  color: #1a1a1a;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
   cursor: pointer;
   font-size: 14px;
   font-weight: 600;
-  transition: background 0.3s;
+  transition: all 0.3s ease;
+}
+
+.btn-refresh i {
+  color: #667eea;
+  margin-right: 6px;
 }
 
 .btn-refresh:hover:not(:disabled) {
-  background: #0056b3;
+  background: #e0e0e0;
+  border-color: #999;
+  transform: translateY(-2px);
 }
 
 .btn-refresh:disabled {
@@ -264,8 +273,9 @@ export default {
 
 .card-header {
   padding: 15px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: #f9fafb;
+  color: #333;
+  border-bottom: 2px solid #667eea;
   display: flex;
   justify-content: space-between;
   align-items: start;
@@ -344,20 +354,36 @@ export default {
 }
 
 .btn-approve {
-  background: #28a745;
+  background: #10b981;
   color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
 .btn-approve:hover:not(:disabled) {
-  background: #218838;
+  background: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
 .btn-reject {
-  background: #dc3545;
+  background: #ef4444;
   color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
 .btn-reject:hover:not(:disabled) {
-  background: #c82333;
+  background: #dc2626;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 </style>

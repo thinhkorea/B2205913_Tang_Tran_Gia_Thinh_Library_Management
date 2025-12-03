@@ -18,11 +18,10 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    // Tạo tên file unique với timestamp
+    // Sử dụng timestamp làm tên file tạm thời, sẽ được đổi tên sau với Ma_Sach
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext);
-    cb(null, `${name}-${uniqueSuffix}${ext}`);
+    cb(null, `temp-${uniqueSuffix}${ext}`);
   },
 });
 

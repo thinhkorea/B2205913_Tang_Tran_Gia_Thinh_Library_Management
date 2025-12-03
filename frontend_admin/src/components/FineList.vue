@@ -1,7 +1,7 @@
 <template>
   <div class="fine-management">
     <div class="page-header">
-      <h2><i class="fas fa-money-bill"></i> Quản Lý Tiền Phạt</h2>
+      <h2>Quản Lý Tiền Phạt</h2>
     </div>
 
     <!-- Filter Section -->
@@ -119,6 +119,7 @@
 <script>
 import axios from 'axios';
 import { success, error } from '../utils/toast';
+import socketService from '../utils/socket';
 
 export default {
   name: 'FineList',
@@ -131,12 +132,67 @@ export default {
       searchTerm: '',
       statusFilter: '',
       editingFine: null,
+      pollInterval: null,
     };
   },
   async mounted() {
     await this.loadData();
+
+    // Connect socket and listen for real-time updates
+    try {
+      socketService.connect();
+      
+      socketService.on('fine:created', async () => {
+        console.log('Real-time: fine created');
+        await this.loadFines();
+      });
+      
+      socketService.on('borrow:updated', async () => {
+        console.log('Real-time: borrow updated');
+        await this.loadFines();
+      });
+    } catch (e) {
+      console.warn('Socket connection failed:', e);
+    }
+    
+    // Polling backup every 5 seconds (for direct DB changes)
+    this.pollInterval = setInterval(async () => {
+      // Auto-create fines for overdue books
+      await this.autoCreateFines();
+      await this.loadFines();
+    }, 5000);
   },
+
+  beforeUnmount() {
+    // Cleanup socket listeners
+    try {
+      socketService.off('fine:created');
+      socketService.off('borrow:updated');
+    } catch (e) {
+      console.warn('Socket cleanup error:', e);
+    }
+    
+    // Clear polling interval
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
+  },
+
   methods: {
+    async autoCreateFines() {
+      try {
+        // Gọi API để tự động tạo tiền phạt cho sách quá hạn
+        await axios.post('http://localhost:5000/api/fines/auto-create', {}, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+      } catch (err) {
+        // Silent fail - không cần thông báo lỗi cho polling
+        console.warn('Auto create fines failed:', err.message);
+      }
+    },
     async loadData() {
       await this.loadFines();
       await this.loadReaders();
@@ -238,7 +294,8 @@ export default {
             }
           }
         );
-        success('✅ Cập nhật tiền phạt thành công!');
+
+        success('Cập nhật tiền phạt thành công!');
         this.closeModal();
         await this.loadFines();
       } catch (err) {
@@ -268,13 +325,23 @@ export default {
 </script>
 
 <style scoped>
+/* Container */
+.fine-management {
+  padding: 2rem;
+  background: white;
+  min-height: 100vh;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
 /* Header */
 .page-header {
   margin-bottom: 2rem;
   padding: 1.5rem;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: white;
+  border: 1px solid #e0e0e0;
   border-radius: 12px;
-  color: white;
+  color: #333;
 }
 
 .page-header h2 {
@@ -561,13 +628,20 @@ export default {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
+  background: #f0f0f0;
+  color: #1a1a1a;
+  border: 2px solid #e0e0e0;
+}
+
+.btn-primary i {
+  color: #667eea;
+  margin-right: 6px;
 }
 
 .btn-primary:hover {
+  background: #e0e0e0;
+  border-color: #999;
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
 }
 
 .btn-secondary {

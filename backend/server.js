@@ -3,7 +3,10 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
+import { createServer } from "http";
+import { Server } from "socket.io";
 import { connectDB } from "./config/db.js";
+import { setIO } from "./config/socket.js";
 import bookRoutes from "./routes/book.routes.js";
 import publisherRoutes from "./routes/publisher.routes.js";
 import authorRoutes from "./routes/author.routes.js";
@@ -19,6 +22,30 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 const app = express();
+const httpServer = createServer(app);
+
+// Socket.IO setup
+const io = new Server(httpServer, {
+  cors: {
+    origin: [
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:5175",
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE"],
+  },
+});
+
+// Set io instance for controllers to use
+setIO(io);
+
+io.on("connection", (socket) => {
+  console.log("🔌 Client connected:", socket.id);
+
+  socket.on("disconnect", () => {
+    console.log("🔌 Client disconnected:", socket.id);
+  });
+});
 
 connectDB();
 
@@ -34,6 +61,7 @@ app.use("/api/books", bookRoutes);
 app.use("/api/publishers", publisherRoutes);
 app.use("/api/authors", authorRoutes);
 app.use("/api/borrows", borrowRoutes);
+app.use("/api/staff", staffRoutes);
 app.use("/api/fines", fineRoutes);
 
 app.get("/", (req, res) => {
@@ -41,4 +69,6 @@ app.get("/", (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+httpServer.listen(PORT, () =>
+  console.log(`Server running on port ${PORT} with Socket.IO`)
+);

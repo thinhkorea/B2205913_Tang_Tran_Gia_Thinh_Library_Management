@@ -1,7 +1,7 @@
 <template>
   <div class="publisher-management">
     <div class="page-header">
-      <h2><i class="fas fa-building"></i> Quản Lý Nhà Xuất Bản</h2>
+      <h2>Quản Lý Nhà Xuất Bản</h2>
       <button @click="showPublisherForm = true" class="btn-primary">
         <i class="fas fa-plus"></i> Thêm nhà xuất bản
       </button>
@@ -122,6 +122,8 @@
 
 <script>
 import axios from 'axios';
+import { success, error } from '../utils/toast';
+import socketService from '../utils/socket';
 
 export default {
   name: 'PublisherList',
@@ -139,11 +141,43 @@ export default {
         Dia_Chi: '',
         Dien_Thoai: '',
         Email: ''
-      }
+      },
+      pollInterval: null,
     };
   },
   async mounted() {
     await this.loadData();
+    
+    // Socket connection for real-time updates
+    try {
+      socketService.connect();
+      
+      socketService.on('books:updated', async () => {
+        console.log('Real-time: books updated');
+        await this.loadBooks();
+      });
+    } catch (e) {
+      console.warn('Socket connection failed:', e);
+    }
+    
+    // Polling backup every 5 seconds
+    this.pollInterval = setInterval(async () => {
+      await this.loadBooks();
+    }, 5000);
+  },
+  beforeUnmount() {
+    // Cleanup socket listeners
+    try {
+      socketService.off('books:updated');
+    } catch (e) {
+      console.warn('Socket cleanup error:', e);
+    }
+    
+    // Clear polling interval
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
   },
   methods: {
     async loadData() {
@@ -167,8 +201,9 @@ export default {
     
     async loadBooks() {
       try {
-        const response = await axios.get('http://localhost:5000/api/books');
-        this.books = response.data;
+        const response = await axios.get('http://localhost:5000/api/books?limit=1000');
+        // Books API returns { data: [...], pagination: {...} }
+        this.books = response.data?.data || (Array.isArray(response.data) ? response.data : []);
       } catch (error) {
         console.error('Lỗi tải danh sách sách:', error);
         this.books = [];
@@ -207,7 +242,7 @@ export default {
       const bookCount = this.getBookCount(publisherId);
       
       if (bookCount > 0) {
-        alert(`Không thể xóa nhà xuất bản này vì còn ${bookCount} sách đang sử dụng!`);
+        error(`Không thể xóa nhà xuất bản này vì còn ${bookCount} sách đang sử dụng!`);
         return;
       }
       
@@ -217,10 +252,10 @@ export default {
         await axios.delete(`http://localhost:5000/api/publishers/${publisherId}`);
         this.publishers = this.publishers.filter(p => p._id !== publisherId);
         this.searchPublishers();
-        alert('Xóa nhà xuất bản thành công!');
-      } catch (error) {
-        console.error('Lỗi xóa nhà xuất bản:', error);
-        alert('Có lỗi xảy ra khi xóa nhà xuất bản!');
+        success('Xóa nhà xuất bản thành công!');
+      } catch (err) {
+        console.error('Lỗi xóa nhà xuất bản:', err);
+        error('Có lỗi xảy ra khi xóa nhà xuất bản!');
       }
     },
     
@@ -236,11 +271,10 @@ export default {
         }
         
         this.searchPublishers();
-        this.closeModal();
-        alert(this.editingPublisher ? 'Cập nhật nhà xuất bản thành công!' : 'Thêm nhà xuất bản thành công!');
-      } catch (error) {
-        console.error('Lỗi lưu nhà xuất bản:', error);
-        alert('Có lỗi xảy ra khi lưu nhà xuất bản!');
+        this.closeModal();       success(this.editingPublisher ? 'Cập nhật nhà xuất bản thành công!' : 'Thêm nhà xuất bản thành công!');
+      } catch (err) {
+        console.error('Lỗi lưu nhà xuất bản:', err);
+        error('Có lỗi xảy ra khi lưu nhà xuất bản!');
       }
     },
     
@@ -262,9 +296,18 @@ export default {
 <style scoped>
 .publisher-management {
   padding: 2rem;
-  background: linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 100%);
+  background: linear-gradient(135deg, #f8f9fc 0%, #f3f4f8 100%);
   min-height: 100vh;
-  color: white;
+  color: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+}
+
+.publisher-management > *:not(.modal-overlay) {
+  max-width: 1400px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .page-header {
@@ -277,13 +320,13 @@ export default {
 .page-header h2 {
   font-size: 1.75rem;
   font-weight: 700;
-  color: white;
+  color: #1a1a1a;
   margin: 0;
 }
 
 .page-header i {
   margin-right: 0.5rem;
-  color: #8b5cf6;
+  color: #667eea;
 }
 
 .search-section {
@@ -300,16 +343,16 @@ export default {
   left: 1rem;
   top: 50%;
   transform: translateY(-50%);
-  color: #a0a0b0;
+  color: #667eea;
 }
 
 .search-box input {
   width: 100%;
   padding: 0.875rem 1rem 0.875rem 3rem;
-  border: 1px solid #2a2a3e;
+  border: 1px solid #e0e0e0;
   border-radius: 12px;
-  background: rgba(26, 26, 46, 0.8);
-  color: white;
+  background: white;
+  color: #1a1a1a;
   font-size: 0.9rem;
 }
 
@@ -321,12 +364,12 @@ export default {
 }
 
 .publisher-card {
-  background: rgba(26, 26, 46, 0.8);
+  background: white;
   border-radius: 16px;
   padding: 1.5rem;
-  backdrop-filter: blur(10px);
-  border: 1px solid #2a2a3e;
+  border: 1px solid #e0e0e0;
   transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .publisher-card:hover {
@@ -345,7 +388,7 @@ export default {
 .card-header h3 {
   font-size: 1.1rem;
   font-weight: 700;
-  color: white;
+  color: #1a1a1a;
   margin: 0;
   flex: 1;
   margin-right: 1rem;
@@ -399,17 +442,17 @@ export default {
 .info-item i {
   width: 20px;
   margin-right: 0.75rem;
-  color: #8b5cf6;
+  color: #667eea;
 }
 
 .info-item span {
-  color: #e5e7eb;
+  color: #1a1a1a;
   line-height: 1.4;
 }
 
 .card-footer {
   padding-top: 1rem;
-  border-top: 1px solid #2a2a3e;
+  border-top: 1px solid #e0e0e0;
 }
 
 .stats {
@@ -448,9 +491,9 @@ export default {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #8b5cf6, #a855f7);
-  color: white;
-  border: none;
+  background: #f0f0f0;
+  color: #1a1a1a;
+  border: 2px solid #e0e0e0;
   padding: 0.875rem 1.5rem;
   border-radius: 12px;
   font-weight: 600;
@@ -461,9 +504,15 @@ export default {
   gap: 0.5rem;
 }
 
+.btn-primary i {
+  color: #667eea;
+  font-size: 1.1em;
+}
+
 .btn-primary:hover {
+  background: #e0e0e0;
+  border-color: #999;
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
 }
 
 /* Modal Styles */
@@ -473,21 +522,24 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  margin: 0;
+  padding: 0;
 }
 
 .modal-content {
-  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  background: white;
   border-radius: 16px;
   width: 90%;
   max-width: 600px;
   max-height: 90vh;
   overflow-y: auto;
-  border: 1px solid #2a2a3e;
+  border: 1px solid #f0f0f0;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
 }
 
 .modal-header {
@@ -495,20 +547,20 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem;
-  border-bottom: 1px solid #2a2a3e;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .modal-header h3 {
   font-size: 1.25rem;
   font-weight: 700;
-  color: white;
+  color: #1a1a1a;
   margin: 0;
 }
 
 .btn-close {
   background: none;
   border: none;
-  color: #a0a0b0;
+  color: #999;
   font-size: 1.5rem;
   cursor: pointer;
   padding: 0.25rem;
@@ -516,7 +568,7 @@ export default {
 }
 
 .btn-close:hover {
-  color: white;
+  color: #333;
 }
 
 .modal-form {
@@ -536,7 +588,7 @@ export default {
 .form-group label {
   display: block;
   margin-bottom: 0.5rem;
-  color: #a0a0b0;
+  color: #1a1a1a;
   font-size: 0.9rem;
   font-weight: 500;
 }
@@ -544,17 +596,17 @@ export default {
 .form-group input {
   width: 100%;
   padding: 0.875rem;
-  border: 1px solid #2a2a3e;
+  border: 1px solid #e0e0e0;
   border-radius: 8px;
-  background: rgba(26, 26, 46, 0.6);
-  color: white;
+  background: white;
+  color: #1a1a1a;
   font-size: 0.9rem;
 }
 
 .form-group input:focus {
   outline: none;
-  border-color: #8b5cf6;
-  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+  border-color: #667eea;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
 }
 
 .form-actions {

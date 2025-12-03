@@ -10,6 +10,19 @@ export const getAllReaders = async (req, res) => {
   }
 };
 
+// Lấy độc giả theo ID
+export const getReaderById = async (req, res) => {
+  try {
+    const reader = await Reader.findById(req.params.id);
+    if (!reader) {
+      return res.status(404).json({ message: "Không tìm thấy độc giả" });
+    }
+    res.status(200).json(reader);
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi khi lấy thông tin độc giả", error });
+  }
+};
+
 // Thêm độc giả mới
 export const createReader = async (req, res) => {
   try {

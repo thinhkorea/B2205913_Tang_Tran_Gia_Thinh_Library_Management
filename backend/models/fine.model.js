@@ -44,9 +44,6 @@ const fineSchema = new mongoose.Schema(
       enum: ["Chưa thanh toán", "Đã thanh toán"],
       default: "Chưa thanh toán",
     },
-    Ngay_Thanh_Toan: {
-      type: Date,
-    },
     Ghi_Chu: {
       type: String,
     },

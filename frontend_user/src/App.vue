@@ -34,6 +34,7 @@ import Dashboard from "./components/Dashboard.vue";
 import BorrowBooks from "./components/BorrowBooks.vue";
 import BorrowHistory from "./components/BorrowHistory.vue";
 import { useNavigationStore } from "./stores/navigationStore";
+import { warning } from "./utils/toast";
 
 export default {
   components: {
@@ -58,10 +59,9 @@ export default {
       this.currentUser = JSON.parse(reader);
       this.isLoggedIn = true;
       
-      // Load saved navigation state
-      const navStore = useNavigationStore();
-      navStore.loadState();
-      this.currentPage = navStore.currentPage;
+      // Always start at dashboard on reload/refresh
+      // Do NOT load previous page state on page refresh
+      this.currentPage = "dashboard";
     }
   },
   methods: {
@@ -70,19 +70,12 @@ export default {
       this.currentUser = JSON.parse(reader);
       this.isLoggedIn = true;
       this.currentPage = "dashboard";
-      
-      // Initialize navigation store on login
-      const navStore = useNavigationStore();
-      navStore.loadState();
     },
     handleRegisterSuccess() {
       this.showRegister = false;
     },
     handleNavigate(page) {
-      this.currentPage = page;
-      const navStore = useNavigationStore();
-      navStore.saveCurrentPage(page);
-      
+      this.currentPage = page;      
       // Force Dashboard to reload when navigating back
       if (page === 'dashboard') {
         this.dashboardKey++;
@@ -93,16 +86,14 @@ export default {
       // this.currentPage = "dashboard";
     },
     handleLogout() {
-      if (confirm("Bạn chắc chắn muốn đăng xuất?")) {
-        localStorage.removeItem("reader");
-        this.isLoggedIn = false;
-        this.currentUser = null;
-        this.currentPage = "dashboard";
-        
-        // Clear navigation state on logout
-        const navStore = useNavigationStore();
-        navStore.clearAllState();
-      }
+      localStorage.removeItem("reader");
+      this.isLoggedIn = false;
+      this.currentUser = null;
+      this.currentPage = "dashboard";
+      
+      // Clear navigation state on logout
+      const navStore = useNavigationStore();
+      navStore.clearAllState();
     },
   },
 };

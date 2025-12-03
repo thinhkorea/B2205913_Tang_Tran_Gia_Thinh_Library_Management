@@ -110,6 +110,17 @@
         <i class="fas fa-chevron-left"></i> Trước
       </button>
       
+      <div class="pagination-numbers">
+        <button 
+          v-for="page in totalPages" 
+          :key="page"
+          @click="currentPage = page"
+          :class="['page-number', { active: currentPage === page }]"
+        >
+          {{ page }}
+        </button>
+      </div>
+      
       <div class="pagination-info">
         Trang {{ currentPage }} / {{ totalPages }} ({{ filteredBooks.length }} sách)
       </div>
@@ -192,6 +203,7 @@ import { useBookStore } from '@/stores/bookStore';
 import { useBorrowStore } from '@/stores/borrowStore';
 import { useNavigationStore } from '@/stores/navigationStore';
 import Header from './Header.vue';
+import socketService from '../utils/socket.js';
 
 export default {
   name: "BorrowBooks",
@@ -281,8 +293,35 @@ export default {
       this.selectedPublisher = state.selectedPublisher || '';
       this.currentPage = state.currentPage || 1;
     }
+    
+    // Socket connection for real-time updates (non-blocking)
+    try {
+      socketService.connect();
+      
+      // Listen for book updates (quantity changes)
+      socketService.on("books:updated", () => {
+        console.log("Real-time: books updated");
+        this.bookStore.loadBooks();
+      });
+      
+      // Listen for borrow updates (may affect book availability)
+      socketService.on("borrow:updated", () => {
+        console.log("Real-time: borrow updated");
+        this.bookStore.loadBooks();
+      });
+    } catch (socketError) {
+      console.warn("Socket connection failed:", socketError);
+    }
   },
   beforeUnmount() {
+    // Cleanup socket listeners
+    try {
+      socketService.off("books:updated");
+      socketService.off("borrow:updated");
+    } catch (e) {
+      console.warn("Socket cleanup error:", e);
+    }
+    
     // Save state before leaving component
     this.navigationStore.saveBorrowBooksState({
       searchQuery: this.searchTerm,
@@ -380,6 +419,15 @@ export default {
       return date.toISOString().split('T')[0];
     },
     async handleBorrow() {
+      // Get latest user data from localStorage or API
+      const reader = JSON.parse(localStorage.getItem("reader"));
+      
+      // Check if user account is locked
+      if (reader && reader.Tinh_Trang === '0') {
+        this.showError('Tài khoản của bạn đã bị khóa. Vui lòng liên hệ thư viện để được hỗ trợ.');
+        return;
+      }
+
       if (!this.borrowForm.returnDate) {
         this.showError('Vui lòng chọn ngày hẹn trả');
         return;
@@ -431,7 +479,7 @@ export default {
       this.borrowLoading = true;
       try {
         const borrowData = {
-          Ma_Doc_Gia: this.currentUser._id,
+          Ma_Doc_Gia: reader._id,
           Ma_Sach: this.selectedBook._id,
           Ngay_Muon: new Date(this.today),
           Ngay_Hen_Tra: new Date(this.borrowForm.returnDate),
@@ -649,21 +697,49 @@ select optgroup {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2rem;
-  padding: 2rem;
-  background: white;
+  gap: 12px;
+  padding: 20px;
+  background: #f9fafb;
   border-radius: 12px;
   margin: 2rem auto;
   max-width: 1200px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  flex-wrap: wrap;
 }
 
 .pagination-info {
   font-weight: 600;
   color: #666;
   font-size: 0.95rem;
-  min-width: 180px;
-  text-align: center;
+  white-space: nowrap;
+}
+
+.pagination-numbers {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.page-number {
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  transition: all 0.3s ease;
+}
+
+.page-number:hover {
+  background: #f0f0f0;
+  border-color: #bbb;
+}
+
+.page-number.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
 }
 
 .btn-pagination {

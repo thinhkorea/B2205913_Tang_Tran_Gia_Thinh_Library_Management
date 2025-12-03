@@ -36,11 +36,11 @@
 
           <button type="submit" :disabled="loading" class="login-btn">
             <span v-if="!loading">Đăng Nhập Admin</span>
-            <span v-else>⏳ Đang xử lý...</span>
+            <span v-else>Đang xử lý...</span>
           </button>
 
           <div v-if="error" class="error-alert">
-            <span class="error-icon">⚠️</span>
+            <span class="error-icon"></span>
             {{ error }}
           </div>
         </form>
@@ -85,7 +85,7 @@ export default {
       } catch (err) {
         this.error =
           err.response?.data?.message ||
-          "❌ Đăng nhập thất bại. Vui lòng thử lại.";
+          "Đăng nhập thất bại. Vui lòng thử lại.";
       } finally {
         this.loading = false;
       }
