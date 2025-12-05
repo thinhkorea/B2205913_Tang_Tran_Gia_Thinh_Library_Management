@@ -109,11 +109,11 @@ export const getTotalUnpaidFines = async (req, res) => {
   try {
     const { Ma_Doc_Gia } = req.params;
 
-    console.log(`💳 getTotalUnpaidFines for reader: ${Ma_Doc_Gia}`);
+    console.log(`getTotalUnpaidFines for reader: ${Ma_Doc_Gia}`);
 
     // Validate and convert Ma_Doc_Gia to ObjectId
     if (!mongoose.Types.ObjectId.isValid(Ma_Doc_Gia)) {
-      console.warn(`⚠️ Invalid Ma_Doc_Gia format: ${Ma_Doc_Gia}`);
+      console.warn(`Invalid Ma_Doc_Gia format: ${Ma_Doc_Gia}`);
       return res.status(400).json({
         message: "Ma_Doc_Gia không hợp lệ",
         totalFine: 0,
@@ -143,14 +143,14 @@ export const getTotalUnpaidFines = async (req, res) => {
     const totalAmount = result.length > 0 ? result[0].totalFine : 0;
     const count = result.length > 0 ? result[0].count : 0;
 
-    console.log(`✅ Total unpaid fines: ${totalAmount} VND (${count} records)`);
+    console.log(`Total unpaid fines: ${totalAmount} VND (${count} records)`);
 
     res.status(200).json({
       totalFine: totalAmount,
       count,
     });
   } catch (error) {
-    console.error("❌ Error in getTotalUnpaidFines:", error);
+    console.error("Error in getTotalUnpaidFines:", error);
     res.status(500).json({
       message: "Lỗi khi lấy tổng tiền phạt",
       error: error.message,
@@ -269,7 +269,7 @@ export const cleanupOldFines = async (req, res) => {
           await Fine.findByIdAndDelete(fine._id);
           deletedCount++;
           console.log(
-            `🗑️ Deleted old fine ${fine._id}: was ${fine.Tien_Phat}, should be ${expectedFine}`
+            `Deleted old fine ${fine._id}: was ${fine.Tien_Phat}, should be ${expectedFine}`
           );
         }
       }
@@ -370,7 +370,7 @@ export const autoCreateOverdueFines = async (req, res) => {
       if (!existingFine) {
         // Tạo fine record mới
         try {
-          await Fine.create({
+          const newFine = await Fine.create({
             Ma_Doc_Gia: borrow.Ma_Doc_Gia,
             Ma_Sach: borrow.Ma_Sach._id,
             Ma_Muon: borrow._id,
@@ -382,6 +382,27 @@ export const autoCreateOverdueFines = async (req, res) => {
             Trang_Thai_Thanh_Toan: "Chưa thanh toán",
             Ghi_Chu: `Auto-created: Quá hạn ${daysLate} ngày. 10,000 VND/ngày`,
           });
+
+          // Populate để lấy thông tin reader
+          const populatedFine = await Fine.findById(newFine._id)
+            .populate("Ma_Doc_Gia")
+            .populate("Ma_Sach");
+
+          // Gửi email thông báo phạt
+          if (populatedFine.Ma_Doc_Gia?.Email) {
+            const readerName = `${populatedFine.Ma_Doc_Gia.Ho_Lot || ""} ${
+              populatedFine.Ma_Doc_Gia.Ten || ""
+            }`.trim();
+            await EmailService.sendFineNotificationEmail(
+              populatedFine.Ma_Doc_Gia.Email,
+              readerName || "Độc giả",
+              populatedFine.Tong_Tien,
+              populatedFine.Ghi_Chu
+            );
+            console.log(
+              `Fine notification email sent to ${populatedFine.Ma_Doc_Gia.Email}`
+            );
+          }
 
           createdCount++;
           console.log(

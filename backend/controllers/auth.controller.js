@@ -1,10 +1,11 @@
 import Staff from "../models/staff.model.js";
 import Reader from "../models/reader.model.js";
+import EmailService from "../services/email.service.js";
 
 // Đăng ký cho độc giả (Reader)
 export const readerRegister = async (req, res) => {
   try {
-    const { Ho_Lot, Ten, Password, Dien_Thoai, Email, Dia_Chi } = req.body;
+    const { Ho_Lot, Ten, Password, Dien_Thoai, Email, Dia_Chi, Ngay_Sinh } = req.body;
 
     // Kiểm tra các trường bắt buộc
     if (!Ho_Lot || !Ten || !Password) {
@@ -38,12 +39,25 @@ export const readerRegister = async (req, res) => {
       Dien_Thoai: Dien_Thoai || "",
       Email: Email || "",
       Dia_Chi: Dia_Chi || "",
+      Ngay_Sinh: Ngay_Sinh || null,
       Tinh_Trang: "1", // Mặc định kích hoạt
       Ngay_Dang_Ky: new Date(),
     });
 
     // Lưu vào database
     await newReader.save();
+
+    // Gửi email chào mừng
+    if (newReader.Email) {
+      const readerName = `${newReader.Ho_Lot || ""} ${
+        newReader.Ten || ""
+      }`.trim();
+      await EmailService.sendWelcomeEmail(
+        newReader.Email,
+        readerName || "Độc giả"
+      );
+      console.log(`Welcome email sent to ${newReader.Email}`);
+    }
 
     res.status(201).json({
       message: "Đăng ký thành công",
@@ -55,6 +69,7 @@ export const readerRegister = async (req, res) => {
         Email: newReader.Email,
         Dien_Thoai: newReader.Dien_Thoai,
         Dia_Chi: newReader.Dia_Chi,
+        Ngay_Sinh: newReader.Ngay_Sinh,
         Ngay_Dang_Ky: newReader.Ngay_Dang_Ky,
         Tinh_Trang: newReader.Tinh_Trang,
       },
@@ -84,7 +99,9 @@ export const staffLogin = async (req, res) => {
 
     // Cho phép cả admin và staff đăng nhập
     if (staff.Role !== "admin" && staff.Role !== "staff") {
-      return res.status(403).json({ message: "Không có quyền truy cập hệ thống quản lý" });
+      return res
+        .status(403)
+        .json({ message: "Không có quyền truy cập hệ thống quản lý" });
     }
 
     // Trả về thông tin nhân viên (không trả password)
@@ -143,6 +160,7 @@ export const readerLogin = async (req, res) => {
       Dien_Thoai: reader.Dien_Thoai,
       Dia_Chi: reader.Dia_Chi,
       Email: reader.Email,
+      Ngay_Sinh: reader.Ngay_Sinh,
       Ngay_Dang_Ky: reader.Ngay_Dang_Ky,
       Tinh_Trang: reader.Tinh_Trang,
     };
@@ -202,6 +220,7 @@ export const getCurrentReader = async (req, res) => {
       Dien_Thoai: reader.Dien_Thoai,
       Dia_Chi: reader.Dia_Chi,
       Email: reader.Email,
+      Ngay_Sinh: reader.Ngay_Sinh,
       Ngay_Dang_Ky: reader.Ngay_Dang_Ky,
       Tinh_Trang: reader.Tinh_Trang,
     };

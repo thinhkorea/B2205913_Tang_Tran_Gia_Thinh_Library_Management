@@ -3,7 +3,7 @@
     <div class="register-container">
       <div class="register-box">
         <div class="register-header">
-          <h1>📚 Quản Lý Thư Viện</h1>
+          <h1>Quản Lý Thư Viện</h1>
           <p>Đăng Ký Tài Khoản Độc Giả</p>
         </div>
 
@@ -12,7 +12,6 @@
           <div class="form-row">
             <div class="form-group">
               <label>
-                <span class="label-icon">👤</span>
                 <span>Họ <span class="required">*</span></span>
               </label>
               <input
@@ -25,7 +24,6 @@
             </div>
             <div class="form-group">
               <label>
-                <span class="label-icon">👤</span>
                 <span>Tên <span class="required">*</span></span>
               </label>
               <input
@@ -42,7 +40,6 @@
           <div class="form-row">
             <div class="form-group">
               <label>
-                <span class="label-icon">✉️</span>
                 <span>Email <span class="required">*</span></span>
               </label>
               <input
@@ -55,7 +52,6 @@
             </div>
             <div class="form-group">
               <label>
-                <span class="label-icon">📱</span>
                 <span>Số Điện Thoại</span>
               </label>
               <input
@@ -67,11 +63,10 @@
             </div>
           </div>
 
-          <!-- Hàng 3: Địa chỉ -->
+          <!-- Hàng 3: Địa chỉ, Ngày sinh -->
           <div class="form-row">
             <div class="form-group">
               <label>
-                <span class="label-icon">📍</span>
                 <span>Địa Chỉ</span>
               </label>
               <input
@@ -82,14 +77,22 @@
               />
             </div>
             <div class="form-group">
+              <label>
+                <span>Ngày Sinh</span>
+              </label>
+              <input
+                v-model="formData.Ngay_Sinh"
+                type="date"
+                placeholder="Chọn ngày sinh"
+                class="form-input"
+              />
             </div>
           </div>
 
-          <!-- Hàng 4: Mật khẩu, Xác nhận mật khẩu -->
+          <!-- Hàng 5: Mật khẩu, Xác nhận mật khẩu -->
           <div class="form-row">
             <div class="form-group">
               <label>
-                <span class="label-icon">🔐</span>
                 <span>Mật Khẩu <span class="required">*</span></span>
               </label>
               <input
@@ -102,7 +105,6 @@
             </div>
             <div class="form-group">
               <label>
-                <span class="label-icon">🔐</span>
                 <span>Xác Nhận Mật Khẩu <span class="required">*</span></span>
               </label>
               <input
@@ -117,16 +119,14 @@
 
           <button type="submit" :disabled="loading" class="register-btn">
             <span v-if="!loading">Đăng Ký</span>
-            <span v-else>⏳ Đang xử lý...</span>
+            <span v-else>Đang xử lý...</span>
           </button>
 
           <div v-if="error" class="error-alert">
-            <span class="error-icon">⚠️</span>
             {{ error }}
           </div>
 
           <div v-if="success" class="success-alert">
-            <span class="success-icon">✅</span>
             {{ success }}
           </div>
 
@@ -157,6 +157,7 @@ export default {
         Dien_Thoai: "",
         Email: "",
         Dia_Chi: "",
+                       Ngay_Sinh: "",
         Password: "",
         ConfirmPassword: "",
       },
@@ -169,14 +170,14 @@ export default {
     async handleRegister() {
       // Kiểm tra mật khẩu trùng khớp
       if (this.formData.Password !== this.formData.ConfirmPassword) {
-        this.error = "❌ Mật khẩu không trùng khớp";
+        this.error = "Mật khẩu không trùng khớp";
         this.success = "";
         return;
       }
 
       // Kiểm tra độ dài mật khẩu
       if (this.formData.Password.length < 6) {
-        this.error = "❌ Mật khẩu phải có ít nhất 6 ký tự";
+        this.error = "Mật khẩu phải có ít nhất 6 ký tự";
         this.success = "";
         return;
       }
@@ -193,7 +194,7 @@ export default {
           dataToSend
         );
 
-        this.success = "✅ Đăng ký thành công! Vui lòng đăng nhập.";
+        this.success = "Đăng ký thành công! Vui lòng đăng nhập.";
         this.formData = {
           Ma_Doc_Gia: "",
           Ho_Lot: "",
@@ -201,6 +202,7 @@ export default {
           Dien_Thoai: "",
           Email: "",
           Dia_Chi: "",
+          Ngay_Sinh: "",
           Password: "",
           ConfirmPassword: "",
         };
@@ -211,7 +213,7 @@ export default {
       } catch (err) {
         this.error =
           err.response?.data?.message ||
-          "❌ Đăng ký thất bại. Vui lòng thử lại.";
+          "Đăng ký thất bại. Vui lòng thử lại.";
         this.success = "";
       } finally {
         this.loading = false;

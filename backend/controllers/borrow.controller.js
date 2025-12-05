@@ -105,18 +105,6 @@ export const createBorrow = async (req, res) => {
       },
     });
 
-    // Gửi email xác nhận mượn sách
-    if (newBorrow.Ma_Doc_Gia?.Email && newBorrow.Ma_Sach) {
-      const readerName = `${newBorrow.Ma_Doc_Gia.Ho_Lot || ''} ${newBorrow.Ma_Doc_Gia.Ten || ''}`.trim();
-      await EmailService.sendBorrowConfirmationEmail(
-        newBorrow.Ma_Doc_Gia.Email,
-        readerName || 'Độc giả',
-        newBorrow.Ma_Sach.Ten_Sach || 'N/A',
-        newBorrow.Ngay_Muon,
-        newBorrow.Ngay_Hen_Tra
-      );
-    }
-
     // Emit real-time update
     emitEvent("borrow:created", { borrowId: newBorrow._id });
 
@@ -136,6 +124,10 @@ export const updateBorrow = async (req, res) => {
     const { Ngay_Tra_Thuc_Te, trang_thai } = req.body;
     const borrowId = req.params.id;
 
+    console.log("updateBorrow called - borrowId:", borrowId);
+    console.log("Request body:", req.body);
+    console.log("New status:", trang_thai);
+
     // Get original borrow record
     const originalBorrow = await Borrow.findById(borrowId);
 
@@ -145,6 +137,8 @@ export const updateBorrow = async (req, res) => {
       });
     }
 
+    console.log("Original status:", originalBorrow.trang_thai);
+
     // Update borrow record
     const updateData = {};
     if (Ngay_Tra_Thuc_Te) {
@@ -152,39 +146,6 @@ export const updateBorrow = async (req, res) => {
     }
     if (trang_thai) {
       updateData.trang_thai = trang_thai;
-    }
-
-    // Tính tiền phạt nếu quá hạn
-    if (trang_thai === "Đã trả" || (Ngay_Tra_Thuc_Te && !trang_thai)) {
-      const returnDate = Ngay_Tra_Thuc_Te
-        ? new Date(Ngay_Tra_Thuc_Te)
-        : new Date();
-      const dueDate = new Date(originalBorrow.Ngay_Hen_Tra);
-
-      // Nếu trả muộn, tạo tiền phạt trong collection Tien_Phat
-      if (returnDate > dueDate) {
-        const daysLate = Math.ceil(
-          (returnDate - dueDate) / (1000 * 60 * 60 * 24)
-        );
-
-        // Tiền phạt = 10,000 VND per day
-        const finePerDay = 10000;
-        const fineAmount = daysLate * finePerDay;
-
-        // Lưu vào collection Tien_Phat
-        await Fine.create({
-          Ma_Doc_Gia: originalBorrow.Ma_Doc_Gia,
-          Ma_Sach: originalBorrow.Ma_Sach,
-          Ma_Muon: borrowId,
-          Tien_Phat: fineAmount,
-          Tong_Tien: fineAmount,
-          Ngay_Hen_Tra: originalBorrow.Ngay_Hen_Tra,
-          Ngay_Tra_Thuc_Te: returnDate,
-          So_Ngay_Tre: daysLate,
-          Trang_Thai_Thanh_Toan: "Chưa thanh toán",
-          Ghi_Chu: `Trả muộn ${daysLate} ngày. Phạt: 10,000 VND/ngày`,
-        });
-      }
     }
 
     const updated = await Borrow.findByIdAndUpdate(borrowId, updateData, {
@@ -198,23 +159,81 @@ export const updateBorrow = async (req, res) => {
         },
       });
 
+    // Nếu admin xác nhận mượn sách (từ Chờ xác nhận -> Đang mượn)
+    if (
+      trang_thai === "Đang mượn" &&
+      originalBorrow.trang_thai === "Chờ xác nhận"
+    ) {
+      console.log("Admin confirmed borrow, preparing to send email...");
+      console.log("Reader email:", updated.Ma_Doc_Gia?.Email);
+      console.log("Book title:", updated.Ma_Sach?.Ten_Sach);
+
+      // Gửi email xác nhận mượn sách
+      if (updated.Ma_Doc_Gia?.Email && updated.Ma_Sach) {
+        try {
+          const readerName = `${updated.Ma_Doc_Gia.Ho_Lot || ""} ${
+            updated.Ma_Doc_Gia.Ten || ""
+          }`.trim();
+          await EmailService.sendBorrowConfirmationEmail(
+            updated.Ma_Doc_Gia.Email,
+            readerName || "Độc giả",
+            updated.Ma_Sach.Ten_Sach || "N/A",
+            updated.Ngay_Muon,
+            updated.Ngay_Hen_Tra
+          );
+          console.log(
+            `📧 Borrow confirmation email sent to ${updated.Ma_Doc_Gia.Email}`
+          );
+        } catch (emailError) {
+          console.error(
+            "❌ Error sending borrow confirmation email:",
+            emailError
+          );
+        }
+      } else {
+        console.log("⚠️ Cannot send email - missing email or book info");
+      }
+    }
+
     // Nếu trả sách thì tăng lại So_Quyen
-    if (trang_thai === "Đã trả" && originalBorrow.trang_thai === "Đang mượn") {
+    if (
+      trang_thai === "Đã trả" &&
+      (originalBorrow.trang_thai === "Đang mượn" ||
+        originalBorrow.trang_thai === "Quá hạn")
+    ) {
       await Book.findByIdAndUpdate(
         originalBorrow.Ma_Sach,
         { $inc: { So_Quyen: 1 } },
         { new: true }
       );
 
+      console.log("Return confirmed, preparing to send email...");
+      console.log("Reader email:", updated.Ma_Doc_Gia?.Email);
+      console.log("Book title:", updated.Ma_Sach?.Ten_Sach);
+
       // Gửi email xác nhận trả sách
       if (updated.Ma_Doc_Gia?.Email && updated.Ma_Sach) {
-        const readerName = `${updated.Ma_Doc_Gia.Ho_Lot || ''} ${updated.Ma_Doc_Gia.Ten || ''}`.trim();
-        await EmailService.sendReturnConfirmationEmail(
-          updated.Ma_Doc_Gia.Email,
-          readerName || 'Độc giả',
-          updated.Ma_Sach.Ten_Sach || 'N/A',
-          updateData.Ngay_Tra || new Date()
-        );
+        try {
+          const readerName = `${updated.Ma_Doc_Gia.Ho_Lot || ""} ${
+            updated.Ma_Doc_Gia.Ten || ""
+          }`.trim();
+          await EmailService.sendReturnConfirmationEmail(
+            updated.Ma_Doc_Gia.Email,
+            readerName || "Độc giả",
+            updated.Ma_Sach.Ten_Sach || "N/A",
+            updateData.Ngay_Tra || new Date()
+          );
+          console.log(
+            `📧 Return confirmation email sent to ${updated.Ma_Doc_Gia.Email}`
+          );
+        } catch (emailError) {
+          console.error(
+            "❌ Error sending return confirmation email:",
+            emailError
+          );
+        }
+      } else {
+        console.log("⚠️ Cannot send email - missing email or book info");
       }
 
       // Emit books updated event for real-time sync
@@ -291,7 +310,9 @@ export const autoUpdateOverdueStatus = async (req, res) => {
     const overdueBooks = await Borrow.find({
       trang_thai: "Đang mượn",
       Ngay_Hen_Tra: { $lt: today },
-    });
+    })
+      .populate("Ma_Doc_Gia")
+      .populate("Ma_Sach");
 
     for (const borrow of overdueBooks) {
       await Borrow.findByIdAndUpdate(
@@ -301,6 +322,26 @@ export const autoUpdateOverdueStatus = async (req, res) => {
       );
       overdueCount++;
       console.log(`Updated borrow ${borrow._id} to "Quá hạn"`);
+
+      // Gửi email nhắc nhở trả sách
+      if (borrow.Ma_Doc_Gia?.Email && borrow.Ma_Sach) {
+        try {
+          const readerName = `${borrow.Ma_Doc_Gia.Ho_Lot || ""} ${
+            borrow.Ma_Doc_Gia.Ten || ""
+          }`.trim();
+          await EmailService.sendReturnReminderEmail(
+            borrow.Ma_Doc_Gia.Email,
+            readerName || "Độc giả",
+            borrow.Ma_Sach.Ten_Sach || "N/A",
+            borrow.Ngay_Hen_Tra
+          );
+          console.log(
+            `Overdue reminder email sent to ${borrow.Ma_Doc_Gia.Email}`
+          );
+        } catch (emailError) {
+          console.error("Error sending overdue reminder email:", emailError);
+        }
+      }
     }
 
     // 2. Tìm sách "Quá hạn" nhưng ngày hẹn trả chưa đến → chuyển về "Đang mượn"
@@ -323,7 +364,11 @@ export const autoUpdateOverdueStatus = async (req, res) => {
 
     // Emit real-time update if any books were updated
     if (totalUpdated > 0) {
-      emitEvent("borrow:updated", { overdueCount, backToNormalCount, type: "status_sync" });
+      emitEvent("borrow:updated", {
+        overdueCount,
+        backToNormalCount,
+        type: "status_sync",
+      });
     }
 
     res.status(200).json({
@@ -370,6 +415,27 @@ export const approveBorrow = async (req, res) => {
           path: "Tac_Gia",
         },
       });
+
+    // Gửi email xác nhận mượn sách
+    if (updatedBorrow.Ma_Doc_Gia?.Email && updatedBorrow.Ma_Sach) {
+      try {
+        const readerName = `${updatedBorrow.Ma_Doc_Gia.Ho_Lot || ""} ${
+          updatedBorrow.Ma_Doc_Gia.Ten || ""
+        }`.trim();
+        await EmailService.sendBorrowConfirmationEmail(
+          updatedBorrow.Ma_Doc_Gia.Email,
+          readerName || "Độc giả",
+          updatedBorrow.Ma_Sach.Ten_Sach || "N/A",
+          updatedBorrow.Ngay_Muon,
+          updatedBorrow.Ngay_Hen_Tra
+        );
+        console.log(
+          `Borrow confirmation email sent to ${updatedBorrow.Ma_Doc_Gia.Email}`
+        );
+      } catch (emailError) {
+        console.error("Error sending borrow confirmation email:", emailError);
+      }
+    }
 
     res.status(200).json({
       message: "Phiếu mượn đã được xác nhận",
