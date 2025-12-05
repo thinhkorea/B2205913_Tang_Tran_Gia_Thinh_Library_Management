@@ -5,7 +5,8 @@ import EmailService from "../services/email.service.js";
 // Đăng ký cho độc giả (Reader)
 export const readerRegister = async (req, res) => {
   try {
-    const { Ho_Lot, Ten, Password, Dien_Thoai, Email, Dia_Chi, Ngay_Sinh } = req.body;
+    const { Ho_Lot, Ten, Password, Dien_Thoai, Email, Dia_Chi, Ngay_Sinh } =
+      req.body;
 
     // Kiểm tra các trường bắt buộc
     if (!Ho_Lot || !Ten || !Password) {

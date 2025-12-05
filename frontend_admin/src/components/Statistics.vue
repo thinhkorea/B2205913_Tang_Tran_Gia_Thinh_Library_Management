@@ -117,7 +117,7 @@ export default {
     this.pollInterval = setInterval(async () => {
       await this.loadStatistics();
       this.updateCharts();
-    }, 5000);
+    }, 3000);
   },
   beforeUnmount() {
     // Cleanup charts

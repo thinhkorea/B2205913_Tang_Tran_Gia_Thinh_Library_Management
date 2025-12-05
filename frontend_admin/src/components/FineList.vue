@@ -160,7 +160,7 @@ export default {
       // Auto-create fines for overdue books
       await this.autoCreateFines();
       await this.loadFines();
-    }, 5000);
+    }, 3000);
   },
 
   beforeUnmount() {

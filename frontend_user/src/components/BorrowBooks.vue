@@ -330,6 +330,45 @@ export default {
       currentPage: this.currentPage,
     });
   },
+  watch: {
+    currentPage() {
+      // Cuộn lên đầu trang khi chuyển trang
+      this.$nextTick(() => {
+        // Thử scroll cả content-wrapper và container
+        const contentWrapper = document.querySelector('.content-wrapper');
+        const container = document.querySelector('.borrow-books-container');
+        const filterRow = document.querySelector('.filter-row');
+        
+        if (contentWrapper) {
+          contentWrapper.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+          });
+        }
+        
+        if (container) {
+          container.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+          });
+        }
+        
+        // Scroll đến vị trí filter row
+        if (filterRow) {
+          filterRow.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }
+        
+        // Thêm scroll window để chắc chắn
+        window.scrollTo({
+          top: 0,
+          behavior: 'smooth'
+        });
+      });
+    }
+  },
   methods: {
     async initializeData() {
       try {

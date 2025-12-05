@@ -163,7 +163,7 @@ export default {
     // Polling backup every 5 seconds
     this.pollInterval = setInterval(async () => {
       await this.loadBooks();
-    }, 5000);
+    }, 3000);
   },
   beforeUnmount() {
     // Cleanup socket listeners

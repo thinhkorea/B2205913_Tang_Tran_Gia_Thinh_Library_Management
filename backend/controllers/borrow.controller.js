@@ -182,16 +182,13 @@ export const updateBorrow = async (req, res) => {
             updated.Ngay_Hen_Tra
           );
           console.log(
-            `📧 Borrow confirmation email sent to ${updated.Ma_Doc_Gia.Email}`
+            `Borrow confirmation email sent to ${updated.Ma_Doc_Gia.Email}`
           );
         } catch (emailError) {
-          console.error(
-            "❌ Error sending borrow confirmation email:",
-            emailError
-          );
+          console.error("Error sending borrow confirmation email:", emailError);
         }
       } else {
-        console.log("⚠️ Cannot send email - missing email or book info");
+        console.log("Cannot send email - missing email or book info");
       }
     }
 
@@ -224,16 +221,13 @@ export const updateBorrow = async (req, res) => {
             updateData.Ngay_Tra || new Date()
           );
           console.log(
-            `📧 Return confirmation email sent to ${updated.Ma_Doc_Gia.Email}`
+            `Return confirmation email sent to ${updated.Ma_Doc_Gia.Email}`
           );
         } catch (emailError) {
-          console.error(
-            "❌ Error sending return confirmation email:",
-            emailError
-          );
+          console.error("Error sending return confirmation email:", emailError);
         }
       } else {
-        console.log("⚠️ Cannot send email - missing email or book info");
+        console.log("Cannot send email - missing email or book info");
       }
 
       // Emit books updated event for real-time sync

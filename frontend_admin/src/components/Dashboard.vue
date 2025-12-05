@@ -587,7 +587,7 @@ onMounted(() => {
   // Polling backup every 5 seconds
   pollInterval = setInterval(() => {
     loadDashboardStats();
-  }, 5000);
+  }, 3000);
 });
 
 onUnmounted(() => {

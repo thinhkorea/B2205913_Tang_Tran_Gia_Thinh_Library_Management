@@ -279,7 +279,7 @@ export default {
       // Auto-sync status based on Ngay_Hen_Tra
       await this.autoSyncStatus();
       await this.loadBorrows();
-    }, 5000);
+    }, 3000);
   },
 
   beforeUnmount() {
